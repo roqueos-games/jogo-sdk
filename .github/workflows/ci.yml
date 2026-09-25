@@ -1,0 +1,36 @@
+# O gate do SDK, no GitHub, para quem contribui de fora.
+#
+# Repo público: o Actions é de graça, e um PR vindo de fork precisa ser julgado
+# por uma esteira que ele não controla. Por isso este workflow:
+#   - roda em pull_request (e NUNCA em pull_request_target, que daria ao
+#     código do fork o token com escrita);
+#   - não lê nenhum segredo, e as permissões são só de leitura;
+#   - roda o mesmo `yarn verificar` que o pre-push roda na máquina.
+name: verificar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verificar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+      - name: Dependências, exatamente as do lockfile
+        run: yarn install --frozen-lockfile --ignore-scripts
+      - name: Lint, formato, testes e jogo check
+        run: yarn verificar

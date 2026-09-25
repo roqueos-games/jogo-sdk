@@ -1,0 +1,45 @@
+{
+  "name": "@roqueos-games/jogo-sdk",
+  "version": "0.1.0",
+  "description": "O contrato entre o RoqueOS e um jogo: mount(el, host), as capacidades do host, um host para rodar o jogo sozinho, um host falso para teste e o jogo check.",
+  "license": "MIT",
+  "author": "Roque Ribeiro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/roqueos-games/jogo-sdk.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./host-de-desenvolvimento": "./src/host/desenvolvimento.js",
+    "./host-falso": "./src/host/falso.js",
+    "./armazenamento": "./src/host/armazenamento.js"
+  },
+  "bin": {
+    "jogo": "./bin/jogo.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "yarn@1.22.22",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verificar": "yarn lint && yarn format:check && yarn test && yarn jogo:check",
+    "jogo:check": "node bin/jogo.mjs check --sdk"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.14.0",
+    "eslint": "9.14.0",
+    "globals": "16.4.0",
+    "prettier": "3.3.3"
+  }
+}

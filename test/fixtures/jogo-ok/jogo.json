@@ -1,0 +1,58 @@
+{
+  "id": "exemplo",
+  "slug": "exemplo",
+  "versaoDoContrato": 1,
+  "nome": {
+    "pt-BR": "Exemplo",
+    "en-US": "Exemplo",
+    "es-ES": "Exemplo",
+    "fr-FR": "Exemplo",
+    "de-DE": "Exemplo",
+    "ja-JP": "Exemplo",
+    "zh-CN": "Exemplo",
+    "hi-IN": "Exemplo",
+    "ru-RU": "Exemplo",
+    "ar-AR": "Exemplo"
+  },
+  "descricao": {
+    "pt-BR": "Um jogo de exemplo (pt-BR).",
+    "en-US": "Um jogo de exemplo (en-US).",
+    "es-ES": "Um jogo de exemplo (es-ES).",
+    "fr-FR": "Um jogo de exemplo (fr-FR).",
+    "de-DE": "Um jogo de exemplo (de-DE).",
+    "ja-JP": "Um jogo de exemplo (ja-JP).",
+    "zh-CN": "Um jogo de exemplo (zh-CN).",
+    "hi-IN": "Um jogo de exemplo (hi-IN).",
+    "ru-RU": "Um jogo de exemplo (ru-RU).",
+    "ar-AR": "Um jogo de exemplo (ar-AR)."
+  },
+  "seo": {
+    "pt-BR": {
+      "resumo": "Jogo de exemplo do SDK.",
+      "sobre": "Existe para o teste do SDK.",
+      "comoJogar": "Clique."
+    },
+    "en-US": {
+      "resumo": "SDK sample game.",
+      "sobre": "It exists for the SDK test.",
+      "comoJogar": "Click."
+    }
+  },
+  "etiquetas": ["Puzzle", "Classic"],
+  "capa": "public/capa.jpg",
+  "icone": "public/icone.svg",
+  "brilho": "rgba(6, 182, 212, 0.5)",
+  "janela": {
+    "largura": 520,
+    "altura": 680,
+    "minLargura": 340,
+    "minAltura": 480
+  },
+  "aceitaConvite": false,
+  "entraNoPodio": true,
+  "recorde": {
+    "chave": "best",
+    "maiorEMelhor": true
+  },
+  "capacidades": []
+}
