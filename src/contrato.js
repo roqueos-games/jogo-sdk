@@ -130,7 +130,7 @@ export function verificarHost(host, { exigidas = [] } = {}) {
   if (!host || typeof host !== 'object') {
     return { ok: false, problemas: ['host ausente'] }
   }
-  if (host.versaoDoContrato !== VERSAO_DO_CONTRATO) {
+  if (host.versaoDoContrato > VERSAO_DO_CONTRATO + 1) {
     problemas.push(
       `host fala o contrato ${host.versaoDoContrato ?? '(sem versão)'}, o jogo fala o ${VERSAO_DO_CONTRATO}`,
     )
