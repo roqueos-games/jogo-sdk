@@ -3,11 +3,14 @@
 // não só que ele não quebrou.
 //
 // `disparar` simula o que vem de fora: o jogador entra na conta no meio da
-// partida, o idioma muda, o outro jogador entra na sala e joga. Um teste que
-// nunca troca o estado não prova que o jogo reage à troca.
+// partida, o idioma muda, o outro jogador entra na sala e joga, a conexão
+// cai, o servidor de IA some, a leitura do save falha. Um teste que nunca
+// troca o estado não prova que o jogo reage à troca.
 
 import { VERSAO_DO_CONTRATO } from '../contrato.js'
 import { armazenamentoDoJogo, armazenamentoEmMemoria } from './armazenamento.js'
+import { conferirPedidoDaIa } from './ia.js'
+import { capacidadeProgresso, erroIndisponivel } from './progresso.js'
 import {
   capacidadeSala,
   entrarNaSala,
@@ -17,13 +20,33 @@ import {
   salaEncerrada,
   salasEmMemoria,
 } from './sala.js'
+import { criarSalaAoVivo } from './salaAoVivo.js'
+
+/** Envolve cada função de uma capacidade para anotar a chamada antes de repassar. */
+function anotada(capacidade, nome, anotar) {
+  const saida = {}
+  for (const [metodo, fn] of Object.entries(capacidade)) {
+    saida[metodo] = (...args) => {
+      anotar(nome, metodo, args)
+      return fn(...args)
+    }
+  }
+  return saida
+}
 
 /**
  * @param {{ jogoId?: string, uid?: string | null, nome?: string | null, idioma?: string,
  *   modoLeve?: boolean, ia?: ((pedido: object) => Promise<string | null>) | null,
- *   sala?: boolean, convite?: string | null }} [opcoes]
- *   `sala: false` tira a capacidade, para o teste do jogo que joga sem ela;
- *   `convite` é o código com que a janela foi aberta (o link ou o QR).
+ *   iaDisponivel?: boolean, sala?: boolean, salaAoVivo?: boolean, convite?: string | null,
+ *   recusar?: ((pedido: { operacao: string, codigo: string, caminho: string,
+ *     uid: string | null, valor?: unknown }) => boolean) | null,
+ *   progresso?: false | { salvo?: object | null, falharLeitura?: boolean,
+ *     falharEscrita?: boolean, disponivel?: boolean } }} [opcoes]
+ *   `sala: false` e `salaAoVivo: false` tiram a capacidade, para o teste do
+ *   jogo que joga sem ela; `convite` é o código com que a janela foi aberta
+ *   (o link ou o QR), e vale para as duas salas. `recusar` faz o papel da
+ *   regra do banco na sala ao vivo: devolve true e a operação é recusada.
+ *   `progresso.disponivel` sem valor segue a conta, como no RoqueOS.
  */
 export function criarHostFalso({
   jogoId = 'teste',
@@ -32,22 +55,30 @@ export function criarHostFalso({
   idioma = 'pt-BR',
   modoLeve = false,
   ia = null,
+  iaDisponivel = true,
   sala = true,
+  salaAoVivo = true,
   convite = null,
+  recusar = null,
+  progresso = {},
 } = {}) {
   const chamadas = []
   const anotar = (capacidade, metodo, args) => chamadas.push({ capacidade, metodo, args })
   const ouvintes = { identidade: new Set(), idioma: new Set() }
-  const estado = { identidade: { uid, nome }, idioma, telaCheia: false }
+  const estado = { identidade: { uid, nome }, idioma, telaCheia: false, iaDisponivel }
   const storage = armazenamentoEmMemoria()
   const armazenamento = armazenamentoDoJogo(jogoId, storage)
   const salas = salasEmMemoria()
+  /** O que o host falso diria no console (a sala ao vivo recusando, o save recusado). */
+  const avisosDoHost = []
+  const registro = { warn: (mensagem) => avisosDoHost.push(mensagem) }
   let placar = null
 
   const host = {
     versaoDoContrato: VERSAO_DO_CONTRATO,
     chamadas,
     storage,
+    avisosDoHost,
     identidade: {
       atual: () => ({ ...estado.identidade }),
       aoMudar(fn) {
@@ -106,11 +137,32 @@ export function criarHostFalso({
     },
     /**
      * Simula mudança vinda de fora: 'identidade' com { uid, nome }, 'idioma'
-     * com o código, ou 'sala' com { acao, codigo, ... } para o outro jogador
-     * (veja `outroJogador` abaixo).
+     * com o código, 'sala' com { acao, codigo, ... } para o outro jogador
+     * (veja `outroJogador` abaixo), 'salaAoVivo' com { acao, codigo, ... }
+     * para os outros jogadores da sala ao vivo (veja `criarSalaAoVivo`),
+     * 'conexao' com true ou false (cair roda o que o jogo armou com aoCair),
+     * 'ia' com { disponivel } e 'progresso' com { falharLeitura,
+     * falharEscrita, disponivel, salvo }.
      */
     disparar(o, valor) {
       if (o === 'sala') return outroJogador(valor)
+      if (o === 'salaAoVivo') return exigirAoVivo().deFora(valor)
+      if (o === 'conexao') return exigirAoVivo().definirConexao(valor, { executar: true })
+      if (o === 'ia') {
+        if (!host.ia) throw new Error('este host falso foi criado sem ia')
+        estado.iaDisponivel = Boolean(valor?.disponivel)
+        return
+      }
+      if (o === 'progresso') {
+        if (!estadoDoProgresso) throw new Error('este host falso foi criado com progresso: false')
+        for (const campo of ['falharLeitura', 'falharEscrita', 'disponivel']) {
+          if (valor && campo in valor) estadoDoProgresso[campo] = valor[campo]
+        }
+        if (valor && 'salvo' in valor) {
+          estadoDoProgresso.salvo = valor.salvo ? structuredClone(valor.salvo) : null
+        }
+        return
+      }
       if (o === 'identidade')
         estado.identidade = { uid: valor?.uid ?? null, nome: valor?.nome ?? null }
       else if (o === 'idioma') estado.idioma = valor
@@ -123,33 +175,108 @@ export function criarHostFalso({
     },
   }
 
+  // A IA existe quando o teste dá a função que responde. O pedido é conferido
+  // no formato do contrato; sem modelo, resposta que não é texto ou erro da
+  // função, o jogo recebe null, como receberia do host do RoqueOS.
   if (ia) {
     host.ia = {
+      disponivel() {
+        anotar('ia', 'disponivel', [])
+        return estado.iaDisponivel
+      },
       async completar(pedido) {
         anotar('ia', 'completar', [pedido])
-        return ia(pedido)
+        conferirPedidoDaIa(pedido)
+        if (!estado.iaDisponivel) return null
+        try {
+          const resposta = await ia(pedido)
+          return typeof resposta === 'string' ? resposta : null
+        } catch {
+          return null
+        }
       },
     }
   }
+
+  // .invalid é reservado e nunca resolve: um link do teste que vaze para
+  // algum lugar não abre a página de ninguém.
+  const linkDaSala = (codigo) => `https://host-falso.invalid/${jogoId}?sala=${codigo}`
 
   if (sala) {
     const capacidade = capacidadeSala({
       salas,
       jogador: () => ({ ...estado.identidade }),
-      // .invalid é reservado e nunca resolve: um link do teste que vaze para
-      // algum lugar não abre a página de ninguém.
-      link: (codigo) => `https://host-falso.invalid/${jogoId}?sala=${codigo}`,
+      link: linkDaSala,
       convite: () => convite,
     })
-    host.sala = {}
-    for (const [metodo, fn] of Object.entries(capacidade)) {
-      host.sala[metodo] = (...args) => {
-        anotar('sala', metodo, args)
-        return fn(...args)
-      }
-    }
+    host.sala = anotada(capacidade, 'sala', anotar)
     /** As salas guardadas, com os nomes do SDK, para o teste olhar sem passar pelo jogo. */
     host.salas = salas
+  }
+
+  // A sala ao vivo mora no mesmo Storage em memória do armazenamento, uma
+  // folha por chave, com o mesmo motor do host de desenvolvimento. Os outros
+  // jogadores entram por `disparar('salaAoVivo', { acao, codigo, uid, ... })`:
+  //
+  //   { acao: 'criar', codigo, uid, nome, meta }  o outro abriu a sala (o
+  //       teste escolhe o código); o meta ganha host, hostName e createdAt
+  //   { acao: 'gravar' | 'atualizar' | 'apagar', codigo, uid, caminho, valor }
+  //   { acao: 'empurrar', codigo, uid, caminho, valor }  devolve a chave
+  //   { acao: 'aoCair', codigo, uid, caminho }  o que some quando ele cair
+  //   { acao: 'cair', uid }  a conexão dele caiu: roda o que ele armou
+  //   { acao: 'sumir', codigo }  a sala inteira deixou de existir
+  const aoVivo = salaAoVivo
+    ? criarSalaAoVivo({
+        storage,
+        jogoId,
+        jogador: () => ({ ...estado.identidade }),
+        link: linkDaSala,
+        convite: () => convite,
+        registro,
+        recusar,
+      })
+    : null
+  function exigirAoVivo() {
+    if (!aoVivo) throw new Error('este host falso foi criado com salaAoVivo: false')
+    return aoVivo
+  }
+  if (aoVivo) {
+    host.salaAoVivo = anotada(aoVivo.capacidade, 'salaAoVivo', anotar)
+    /** A sala inteira como o banco devolveria, para o teste olhar sem passar pelo jogo. */
+    host.arvoreDaSala = (codigo) => aoVivo.arvore(codigo)
+  }
+
+  // O progresso em memória, recusando o que o Firestore recusa.
+  const estadoDoProgresso = progresso
+    ? {
+        salvo: progresso.salvo ? structuredClone(progresso.salvo) : null,
+        falharLeitura: Boolean(progresso.falharLeitura),
+        falharEscrita: Boolean(progresso.falharEscrita),
+        disponivel: progresso.disponivel,
+      }
+    : null
+  if (estadoDoProgresso) {
+    const capacidade = capacidadeProgresso({
+      registro,
+      disponivel: () => estadoDoProgresso.disponivel ?? Boolean(estado.identidade.uid),
+      guardado: {
+        ler() {
+          if (estadoDoProgresso.falharLeitura) {
+            throw erroIndisponivel(new Error('a leitura falhou (host falso, falharLeitura)'))
+          }
+          return estadoDoProgresso.salvo
+        },
+        gravar(doc) {
+          if (estadoDoProgresso.falharEscrita) return false
+          estadoDoProgresso.salvo = doc
+          return true
+        },
+      },
+    })
+    host.progresso = anotada(capacidade, 'progresso', anotar)
+    /** O documento guardado agora (cópia), para o teste olhar sem passar pelo jogo. */
+    host.progressoGuardado = () =>
+      estadoDoProgresso.salvo === null ? null : structuredClone(estadoDoProgresso.salvo)
   }
 
   /**

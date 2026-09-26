@@ -158,6 +158,97 @@ export function conferirAssets(raiz) {
   return problemas
 }
 
+/** As extensões de código que o `jogo check` lê no `src/` de um jogo. */
+const CODIGO = /\.(m?js|cjs|jsx|mts|cts|tsx?|vue|svelte)$/
+
+/**
+ * O código sem os comentários, com as quebras de linha preservadas para o
+ * número da linha continuar certo. Respeita texto entre aspas e crases: um
+ * 'https://…' não é comentário. Um import comentado não é import.
+ */
+export function semComentarios(codigo) {
+  let saida = ''
+  let i = 0
+  while (i < codigo.length) {
+    const c = codigo[i]
+    const d = codigo[i + 1]
+    if (c === '/' && d === '/') {
+      while (i < codigo.length && codigo[i] !== '\n') i++
+    } else if (c === '/' && d === '*') {
+      i += 2
+      while (i < codigo.length && !(codigo[i] === '*' && codigo[i + 1] === '/')) {
+        if (codigo[i] === '\n') saida += '\n'
+        i++
+      }
+      i += 2
+    } else if (c === "'" || c === '"' || c === '`') {
+      saida += c
+      i++
+      while (i < codigo.length && codigo[i] !== c) {
+        if (codigo[i] === '\\') {
+          saida += codigo[i]
+          i++
+        }
+        if (i < codigo.length) saida += codigo[i]
+        i++
+      }
+      if (i < codigo.length) saida += codigo[i]
+      i++
+    } else {
+      saida += c
+      i++
+    }
+  }
+  return saida
+}
+
+// Os jeitos de um módulo entrar: import/export … from, import 'x',
+// import('x') e require('x').
+const FORMAS_DE_IMPORTAR = [
+  /\bfrom\s*(['"])([^'"\n]+)\1/g,
+  /\bimport\s*(['"])([^'"\n]+)\1/g,
+  /\bimport\s*\(\s*(['"`])([^'"`\n]+)\1/g,
+  /\brequire\s*\(\s*(['"`])([^'"`\n]+)\1/g,
+]
+
+/** `firebase`, `firebase/<qualquer coisa>` e os pacotes `@firebase/*` que ele reexporta. */
+export const ehFirebase = (especificador) =>
+  especificador === 'firebase' ||
+  especificador.startsWith('firebase/') ||
+  especificador.startsWith('@firebase/')
+
+/**
+ * O jogo não fala com banco: quem fala é o host (`salaAoVivo`, `progresso`,
+ * `placar`, `sala`). Estava escrito no motivo da `sala` desde a 0.2.0 e nada
+ * impedia um jogo de pôr o `firebase` no package.json e importar; a régua do
+ * front só conferia se o import estava declarado. Jogo que importa o Firebase
+ * leva a configuração do projeto e as regras do banco para dentro dele, e
+ * quebra no dia em que o host muda de banco.
+ */
+export function conferirBanco(raiz) {
+  const problemas = []
+  for (const arquivo of arquivosDe(join(raiz, 'src'))) {
+    if (!CODIGO.test(arquivo)) continue
+    const codigo = semComentarios(readFileSync(arquivo, 'utf8'))
+    const achados = new Map()
+    for (const forma of FORMAS_DE_IMPORTAR) {
+      for (const achado of codigo.matchAll(forma)) {
+        if (ehFirebase(achado[2]) && !achados.has(achado.index)) {
+          achados.set(achado.index, achado[2])
+        }
+      }
+    }
+    const onde = relative(raiz, arquivo).split(sep).join('/')
+    for (const [posicao, especificador] of [...achados].sort((a, b) => a[0] - b[0])) {
+      const linha = codigo.slice(0, posicao).split('\n').length
+      problemas.push(
+        `${onde}:${linha} importa "${especificador}": o jogo não fala com banco, quem fala é o host (salaAoVivo, progresso, placar, sala)`,
+      )
+    }
+  }
+  return problemas
+}
+
 export function conferirManifesto(raiz) {
   const arquivo = join(raiz, 'jogo.json')
   if (!existsSync(arquivo)) return ['jogo.json ausente']
@@ -188,6 +279,7 @@ export function verificarRepo(raiz, { sdk = false } = {}) {
       { secao: 'manifesto', problemas: conferirManifesto(raiz) },
       { secao: 'textos nos dez idiomas', problemas: conferirTextos(raiz) },
       { secao: 'origem dos assets', problemas: conferirAssets(raiz) },
+      { secao: 'o jogo não fala com banco', problemas: conferirBanco(raiz) },
     )
   }
   return secoes

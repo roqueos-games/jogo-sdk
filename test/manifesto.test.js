@@ -2,6 +2,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { validarManifesto, ETIQUETAS } from '../src/index.js'
+import { CAPACIDADES_COM_CONVITE } from '../src/manifesto.js'
 
 const base = () =>
   JSON.parse(readFileSync(new URL('./fixtures/jogo-ok/jogo.json', import.meta.url), 'utf8'))
@@ -73,6 +74,32 @@ describe('validarManifesto', () => {
     assert.deepEqual(validarManifesto(m), [
       'capacidades tem sala e aceitaConvite é false: o link do convite abriria o RoqueOS sem abrir o jogo',
     ])
+  })
+
+  test('sala ao vivo e progresso entram em capacidades', () => {
+    const m = base()
+    m.capacidades = ['salaAoVivo', 'progresso', 'ia', 'teclado']
+    m.aceitaConvite = true
+    assert.deepEqual(validarManifesto(m), [])
+  })
+
+  // A Runa e o RoqueCraft entram pelo mesmo link /app?joinMatch=<jogo>:<código>
+  // do Xadrez: sem aceitaConvite, o convite abre o desktop e para ali.
+  test('sala ao vivo sem aceitaConvite reprova, pelo mesmo motivo da sala', () => {
+    const m = base()
+    m.capacidades = ['salaAoVivo']
+    m.aceitaConvite = false
+    assert.deepEqual(validarManifesto(m), [
+      'capacidades tem salaAoVivo e aceitaConvite é false: o link do convite abriria o RoqueOS sem abrir o jogo',
+    ])
+    assert.deepEqual([...CAPACIDADES_COM_CONVITE], ['sala', 'salaAoVivo'])
+  })
+
+  test('progresso não pede convite', () => {
+    const m = base()
+    m.capacidades = ['progresso']
+    m.aceitaConvite = false
+    assert.deepEqual(validarManifesto(m), [])
   })
 
   test('slug e id no formato', () => {

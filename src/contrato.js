@@ -39,7 +39,7 @@ export const CAPACIDADES = Object.freeze({
     obrigatoria: true,
     forma: FN,
     porque:
-      'avisar(mensagem, { tipo }) com tipo info, sucesso, aviso ou erro. É o que o jogador PRECISA ler, como "partida online pede conta".',
+      'avisar(mensagem, { tipo, fixo }) com tipo info, sucesso, aviso ou erro. É o que o jogador PRECISA ler, como "partida online pede conta". fixo: true fica na tela até o jogador fechar, para o aviso que não pode sumir sozinho: "não consegui ler o seu mundo, nada foi gravado por cima" some em cinco segundos e o jogador acha que perdeu tudo. Host que não sabe fazer aviso fixo mostra passageiro, pior mas sem quebrar.',
   },
   audio: {
     obrigatoria: true,
@@ -88,11 +88,14 @@ export const CAPACIDADES = Object.freeze({
     porque:
       'No desktop do RoqueOS várias janelas disputam o teclado. O jogo reivindica enquanto está ativo e libera quando perde o foco.',
   },
+  // A forma da `ia` mudou na 0.3.0 (entrou `disponivel`) sem versão nova do
+  // contrato, como exceção: nenhum host em uso e nenhum jogo tinham `ia`, então
+  // ninguém quebra. O motivo e a medição estão no CHANGELOG. Não é precedente.
   ia: {
     obrigatoria: false,
-    forma: { completar: FN },
+    forma: { completar: FN, disponivel: FN },
     porque:
-      'completar({ sistema, mensagens }) devolve texto ou null. A chave do provedor nunca chega no jogo, e o host decide limite e consentimento, porque cada chamada pode custar dinheiro na conta do jogador.',
+      'disponivel() diz, ANTES da pergunta, se há modelo agora: prometer conversa e devolver frase pronta é pior que não oferecer a caixa de texto. completar({ sistema, mensagens }), com mensagens [{ papel: "jogador" | "modelo", texto }], devolve texto ou null (sem modelo, erro ou limite). A chave do provedor nunca chega no jogo, e o host decide limite e consentimento, porque cada chamada pode custar dinheiro na conta do jogador.',
   },
   // A sala, função por função:
   //
@@ -130,6 +133,91 @@ export const CAPACIDADES = Object.freeze({
     porque:
       'Partida online de dois jogadores: um cria a sala e recebe código e link (o QR), o outro entra, e os dois trocam o estado do tabuleiro. O jogo não fala com banco nenhum: quem guarda a sala é o host, e o estado é opaco para ele, que só repassa. Sem conta não há sala: criar lança e entrar devolve sem-conta, e é o jogo que avisa o jogador.',
   },
+  // A sala ao vivo (desde 0.3.0), função por função. `caminho` é relativo à
+  // sala, com os segmentos separados por '/'; '' é a sala inteira.
+  //
+  //   criar({ meta })  → { codigo, link, eu: { uid, nome } }. O host grava
+  //       `meta` com host = eu.uid, hostName e createdAt (hora do servidor),
+  //       e a janela passa a estar na sala. Sem conta, lança Error com
+  //       .codigo = 'sem-conta'; sem código livre, lança.
+  //   entrar(codigo)  → { ok: true, meta, eu } | { erro: 'nao-encontrada' |
+  //       'sem-conta' }. Não escreve nada: a presença é do jogo.
+  //   sair(codigo)  para os ouvintes daquela sala nesta janela. Não escreve
+  //       nada, e o que foi armado com aoCair continua armado, como no banco.
+  //   conviteRecebido()  o código com que a janela foi aberta, ou null.
+  //   conectado(fn)  → parar(). fn(true | false) logo depois e a cada troca.
+  //   horaDoServidor()  marcador opaco que o host troca pela hora do servidor
+  //       quando grava. É { '.sv': 'timestamp' }, o mesmo do Realtime Database.
+  //
+  //   ler(codigo, caminho)  → Promise<valor | null>. Rejeita quando não
+  //       consegue ler (.codigo = 'indisponivel', ou 'fora-da-sala').
+  //   gravar(codigo, caminho, valor)  → Promise<boolean>. Substitui; null apaga.
+  //   atualizar(codigo, caminho, parcial)  → Promise<boolean>. Cada chave de
+  //       `parcial` pode ser um caminho ('3_-7/1234'); null apaga aquela chave.
+  //   apagar(codigo, caminho)  → Promise<boolean>.
+  //   empurrar(codigo, caminho, valor)  → Promise<chave | null>, com a chave
+  //       nova em ordem de tempo.
+  //   observar(codigo, caminho, fn)  → parar(). fn(valor | null) logo depois
+  //       e a cada mudança daquele caminho.
+  //   observarFilhos(codigo, caminho, { adicionado, mudado, removido },
+  //       { ultimos })  → parar(). Cada fn(chave, valor), em ordem de chave;
+  //       removido recebe o valor que o filho tinha; ultimos: só os N últimos.
+  //   aoCair(codigo, caminho, 'apagar' | 'cancelar')  → Promise<boolean>. O
+  //       que o host apaga quando esta janela cair ou fechar; 'cancelar'
+  //       desarma aquele caminho e tudo abaixo dele, como o banco faz.
+  //
+  // Vale para todas:
+  //   - Caminho com '.', '#', '$', '[', ']', caractere de controle ou segmento
+  //     vazio, e undefined, função ou NaN em qualquer ponto do valor: TypeError
+  //     na hora da chamada. O banco recusa os dois; pegar no teste é melhor
+  //     que pegar no jogador.
+  //   - Escrita recusada (regra do banco, rede, sala que esta janela não criou
+  //     nem entrou) resolve false, ou null no empurrar. Nunca lança.
+  //   - Na sala que esta janela não criou nem entrou, ler rejeita com
+  //     'fora-da-sala' e observar não entrega nada, como a regra do banco.
+  //   - A primeira entrega de observar, observarFilhos e conectado nunca sai
+  //     dentro da própria chamada: no banco de verdade ela chega depois.
+  //   - O valor volta como o Realtime Database devolve: objeto vazio some
+  //     (null), e array é guardado por índice e volta array quando todas as
+  //     chaves são inteiras e mais da metade dos índices está preenchida.
+  salaAoVivo: {
+    obrigatoria: false,
+    forma: {
+      criar: FN,
+      entrar: FN,
+      sair: FN,
+      conviteRecebido: FN,
+      conectado: FN,
+      horaDoServidor: FN,
+      ler: FN,
+      gravar: FN,
+      atualizar: FN,
+      apagar: FN,
+      empurrar: FN,
+      observar: FN,
+      observarFilhos: FN,
+      aoCair: FN,
+    },
+    porque:
+      'Partida em tempo real de vários jogadores no mesmo mundo: presença de cada um, o que só o anfitrião simula, as intenções dos convidados, os pedaços do mundo que mudaram. O host dá o código, o link do convite e quem é o jogador dentro da sala, e guarda a sala no nó que é DESTE jogo: o jogo só enxerga caminhos dentro dela. O que cada nó significa é do jogo; quem decide quem escreve onde é a regra do banco, não o SDK. Sem conta não há sala: criar lança e entrar devolve sem-conta, e é o jogo que avisa o jogador.',
+  },
+  // O progresso, função por função (desde 0.3.0):
+  //
+  //   disponivel()  → boolean: há onde guardar agora (no RoqueOS, há conta).
+  //   carregar()  → Promise<objeto | null>. null é "não há save"; quando não
+  //       consegue ler, REJEITA com .codigo = 'indisponivel'. Sem onde guardar,
+  //       null sem tentar.
+  //   salvar(dados, { mesclar = false })  → Promise<boolean>. Substitui o
+  //       documento; com mesclar, funde mapa com mapa e mantém o campo que não
+  //       veio. Recusa (false) o que o Firestore recusa: undefined, array
+  //       dentro de array, objeto que não é mapa simples, documento acima de
+  //       1 MiB. Nunca lança.
+  progresso: {
+    obrigatoria: false,
+    forma: { disponivel: FN, carregar: FN, salvar: FN },
+    porque:
+      'O jogo salvo do jogador, na conta dele: o herói, o mundo. Um documento por jogo, que o host já nasce sabendo qual é. "Não tem save" e "não consegui ler o save" são respostas diferentes (null e rejeição), porque confundir as duas grava um mundo vazio por cima de meses de construção. Sem conta, disponivel() é false e nada vai para a conta.',
+  },
 })
 
 /** As situações de uma sala, na ordem em que acontecem. */
@@ -137,6 +225,12 @@ export const SITUACOES_DA_SALA = Object.freeze(['esperando', 'jogando', 'encerra
 
 /** Os motivos de `sala.entrar` recusar, e o de `sala.criar` lançar ('sem-conta'). */
 export const ERROS_DA_SALA = Object.freeze(['nao-encontrada', 'propria', 'cheia', 'sem-conta'])
+
+/** Os motivos de `salaAoVivo.entrar` recusar, e o de `salaAoVivo.criar` lançar ('sem-conta'). */
+export const ERROS_DA_SALA_AO_VIVO = Object.freeze(['nao-encontrada', 'sem-conta'])
+
+/** Quem fala em cada mensagem de `ia.completar`. */
+export const PAPEIS_DA_IA = Object.freeze(['jogador', 'modelo'])
 
 export const OBRIGATORIAS = Object.freeze(
   Object.keys(CAPACIDADES).filter((c) => CAPACIDADES[c].obrigatoria),

@@ -4,7 +4,15 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, appendFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -126,8 +134,72 @@ describe('jogo check', () => {
     assert.equal(saida.ok, true)
     assert.deepEqual(
       saida.secoes.map((s) => s.secao),
-      ['scripts de instalação', 'manifesto', 'textos nos dez idiomas', 'origem dos assets'],
+      [
+        'scripts de instalação',
+        'manifesto',
+        'textos nos dez idiomas',
+        'origem dos assets',
+        'o jogo não fala com banco',
+      ],
     )
+  })
+
+  // O jogo não fala com banco; quem fala é o host. Estava escrito no motivo
+  // da sala desde a 0.2.0, e nada impedia.
+  test("import 'firebase/database' no src/ reprova, com o arquivo, a linha e o porquê", () => {
+    const r = comDefeito((p) =>
+      writeFileSync(
+        join(p, 'src/sala.js'),
+        "// a sala do jogo\n\nimport { ref, set } from 'firebase/database'\nexport const x = 1\n",
+      ),
+    )
+    assert.equal(r.codigo, 1, r.saida)
+    assert.match(r.saida, /REPROVOU {2}o jogo não fala com banco/)
+    assert.match(
+      r.saida,
+      /src\/sala\.js:3 importa "firebase\/database": o jogo não fala com banco, quem fala é o host/,
+    )
+  })
+
+  test('todo jeito de trazer o Firebase reprova, em qualquer arquivo de código do src/', () => {
+    const jeitos = {
+      'a.js': "import 'firebase/database'",
+      'b.mjs': "export { getDoc } from 'firebase/firestore'",
+      'c.ts': "const db = await import('firebase/database')",
+      'd.cjs': "const fb = require('firebase')",
+      'fundo/e.vue': "<script setup>\nimport { getApp } from 'firebase/app'\n</script>",
+      'f.js': 'import { ref } from "@firebase/database"',
+      'g.jsx': 'const m = import(`firebase/storage`)',
+    }
+    const r = comDefeito((p) => {
+      mkdirSync(join(p, 'src/fundo'), { recursive: true })
+      for (const [arquivo, codigo] of Object.entries(jeitos)) {
+        writeFileSync(join(p, 'src', arquivo), `${codigo}\n`)
+      }
+    })
+    assert.equal(r.codigo, 1)
+    for (const arquivo of Object.keys(jeitos)) {
+      assert.match(r.saida, new RegExp(`src/${arquivo.replace('.', '\\.')}:\\d+ importa`), arquivo)
+    }
+  })
+
+  test('o que não é o Firebase passa: comentário, texto, nome parecido, arquivo fora do src', () => {
+    const r = comDefeito((p) => {
+      writeFileSync(
+        join(p, 'src/limpo.js'),
+        [
+          "// import { ref } from 'firebase/database'  (era assim antes da extração)",
+          "/* import 'firebase/firestore' */",
+          "const doc = 'veja https://firebase.google.com // não é import'",
+          "import { algo } from './firebase.js'",
+          "import admin from 'firebase-admin-mock'",
+          'export { doc, algo, admin }',
+        ].join('\n'),
+      )
+      writeFileSync(join(p, 'vite.config.js'), "import 'firebase/database'\n")
+      writeFileSync(join(p, 'src/notas.md'), "import 'firebase/database'\n")
+    })
+    assert.equal(r.codigo, 0, r.saida)
   })
 
   test('comando desconhecido explica o uso', () => {

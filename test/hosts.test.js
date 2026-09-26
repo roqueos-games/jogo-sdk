@@ -101,6 +101,23 @@ describe('host de desenvolvimento', () => {
     assert.equal(host.ia, undefined)
   })
 
+  test('avisar escreve no console, e o fixo sai marcado', () => {
+    const linhas = []
+    const host = criarHostDeDesenvolvimento({
+      jogoId: 'x',
+      janela: janelaFalsa(),
+      registro: { ...silencio, info: (l) => linhas.push(l) },
+    })
+    host.avisar('partida online pede conta', { tipo: 'aviso' })
+    host.avisar('não consegui ler o seu mundo', { tipo: 'erro', fixo: true })
+    host.avisar('salvo')
+    assert.deepEqual(linhas, [
+      '[x] aviso: partida online pede conta',
+      '[x] erro (fixo, até o jogador fechar): não consegui ler o seu mundo',
+      '[x] info: salvo',
+    ])
+  })
+
   test('sem jogoId não há onde guardar nada', () => {
     assert.throws(() => criarHostDeDesenvolvimento({}), /jogoId/)
   })
@@ -133,9 +150,73 @@ describe('host falso', () => {
 
   test('IA só existe quando o teste pede', async () => {
     assert.equal(criarHostFalso().ia, undefined)
-    const host = criarHostFalso({ ia: async ({ mensagens }) => `eco: ${mensagens.at(-1)}` })
-    assert.equal(await host.ia.completar({ sistema: 's', mensagens: ['oi'] }), 'eco: oi')
+    const host = criarHostFalso({ ia: async ({ mensagens }) => `eco: ${mensagens.at(-1).texto}` })
+    assert.equal(host.ia.disponivel(), true)
+    const pedido = { sistema: 's', mensagens: [{ papel: 'jogador', texto: 'oi' }] }
+    assert.equal(await host.ia.completar(pedido), 'eco: oi')
     assert.equal(host.contar('ia', 'completar'), 1)
+    assert.equal(host.contar('ia', 'disponivel'), 1, 'o teste vê que o jogo perguntou antes')
+  })
+
+  test('IA sem modelo: disponivel é false e completar devolve null sem chamar', async () => {
+    let chamou = 0
+    const responder = async () => {
+      chamou += 1
+      return 'resposta'
+    }
+    const pedido = { mensagens: [{ papel: 'jogador', texto: 'oi' }] }
+    const host = criarHostFalso({ ia: responder, iaDisponivel: false })
+    assert.equal(host.ia.disponivel(), false)
+    assert.equal(await host.ia.completar(pedido), null)
+    assert.equal(chamou, 0)
+    host.disparar('ia', { disponivel: true })
+    assert.equal(host.ia.disponivel(), true, 'o servidor voltou: o jogo pergunta de novo')
+    assert.equal(await host.ia.completar(pedido), 'resposta')
+    host.disparar('ia', { disponivel: false })
+    assert.equal(await host.ia.completar(pedido), null)
+    assert.throws(() => criarHostFalso().disparar('ia', { disponivel: true }), /sem ia/)
+  })
+
+  test('IA: erro ou resposta que não é texto chegam ao jogo como null', async () => {
+    const pedido = { mensagens: [{ papel: 'jogador', texto: 'oi' }] }
+    const quebrada = criarHostFalso({
+      ia: async () => {
+        throw new Error('503')
+      },
+    })
+    assert.equal(await quebrada.ia.completar(pedido), null)
+    assert.equal(await criarHostFalso({ ia: async () => undefined }).ia.completar(pedido), null)
+  })
+
+  test('IA: o pedido fora do formato do contrato é erro de quem porta, e aparece no teste', async () => {
+    const host = criarHostFalso({ ia: async () => 'x' })
+    const tortos = [
+      undefined,
+      { mensagens: ['oi'] },
+      { mensagens: [] },
+      { mensagens: [{ role: 'user', content: 'oi' }] },
+      { mensagens: [{ papel: 'usuario', texto: 'oi' }] },
+      { mensagens: [{ papel: 'jogador', texto: 3 }] },
+      { sistema: 1, mensagens: [{ papel: 'jogador', texto: 'oi' }] },
+    ]
+    for (const pedido of tortos) {
+      await assert.rejects(host.ia.completar(pedido), TypeError, JSON.stringify(pedido))
+    }
+    const conversa = [
+      { papel: 'jogador', texto: 'oi' },
+      { papel: 'modelo', texto: 'olá, viajante' },
+      { papel: 'jogador', texto: 'o que vende?' },
+    ]
+    assert.equal(await host.ia.completar({ sistema: 's', mensagens: conversa }), 'x')
+  })
+
+  test('avisar anota o fixo: o aviso que só some quando o jogador fecha', () => {
+    const host = criarHostFalso()
+    host.avisar('Não consegui ler o seu mundo.', { tipo: 'erro', fixo: true })
+    assert.deepEqual(host.chamadas[0].args, [
+      'Não consegui ler o seu mundo.',
+      { tipo: 'erro', fixo: true },
+    ])
   })
 
   test('disparar algo que não existe é erro do teste', () => {

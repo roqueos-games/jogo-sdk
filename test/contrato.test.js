@@ -1,10 +1,13 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   CAPACIDADES,
   ERROS_DA_SALA,
+  ERROS_DA_SALA_AO_VIVO,
   OBRIGATORIAS,
   OPCIONAIS,
+  PAPEIS_DA_IA,
   SITUACOES_DA_SALA,
   VERSAO_DO_CONTRATO,
   verificarHost,
@@ -64,6 +67,81 @@ describe('o contrato', () => {
   test('a versão do contrato continua 1: capacidade opcional nova é versão menor do SDK', () => {
     assert.equal(VERSAO_DO_CONTRATO, 1)
   })
+
+  test('sala ao vivo é opcional, com as catorze funções e mais nenhuma', () => {
+    const { obrigatoria, forma } = CAPACIDADES.salaAoVivo
+    assert.equal(obrigatoria, false)
+    assert.ok(OPCIONAIS.includes('salaAoVivo'))
+    assert.deepEqual(Object.keys(forma).sort(), [
+      'aoCair',
+      'apagar',
+      'atualizar',
+      'conectado',
+      'conviteRecebido',
+      'criar',
+      'empurrar',
+      'entrar',
+      'gravar',
+      'horaDoServidor',
+      'ler',
+      'observar',
+      'observarFilhos',
+      'sair',
+    ])
+    for (const [nome, f] of Object.entries(forma)) assert.equal(f, FN, `salaAoVivo.${nome}`)
+  })
+
+  test('o motivo da sala ao vivo diz o limite dela: nó do jogo, regra do banco, sem conta sem sala', () => {
+    const { porque } = CAPACIDADES.salaAoVivo
+    assert.match(porque, /nó que é DESTE jogo/)
+    assert.match(porque, /regra do banco, não o SDK/)
+    assert.match(porque, /Sem conta não há sala/)
+    assert.deepEqual([...ERROS_DA_SALA_AO_VIVO].sort(), ['nao-encontrada', 'sem-conta'])
+  })
+
+  test('progresso é opcional, com disponivel, carregar e salvar, e o motivo separa null de falha', () => {
+    const { obrigatoria, forma, porque } = CAPACIDADES.progresso
+    assert.equal(obrigatoria, false)
+    assert.deepEqual(forma, { disponivel: FN, carregar: FN, salvar: FN })
+    assert.match(porque, /null e rejeição/)
+  })
+
+  test('ia tem completar e disponivel, e o papel de cada mensagem é vocabulário fechado', () => {
+    assert.deepEqual(CAPACIDADES.ia.forma, { completar: FN, disponivel: FN })
+    assert.deepEqual([...PAPEIS_DA_IA], ['jogador', 'modelo'])
+    assert.match(CAPACIDADES.ia.porque, /ANTES da pergunta/)
+  })
+
+  test('avisar continua uma função só, e o motivo explica o fixo', () => {
+    assert.equal(CAPACIDADES.avisar.forma, FN)
+    assert.match(CAPACIDADES.avisar.porque, /fixo: true fica na tela até o jogador fechar/)
+  })
+
+  // A `ia` mudou de forma na 0.3.0 sem versão nova do contrato. É exceção, e
+  // só é segura porque ninguém implementava: medido em 26/09/2026, nenhum repo
+  // de jogo usa host.ia nem declara ia no jogo.json, e o host do RoqueOS
+  // (master e jogos/onda-3b) não tem ia. A parte que mora no SDK se prova
+  // aqui: os dois hosts dele continuam cumprindo o contrato.
+  test('a forma nova da ia não quebra host nenhum do SDK, e a velha reprova', () => {
+    const dev = criarHostDeDesenvolvimento({ jogoId: 'x', janela: janelaFalsa() })
+    assert.equal(dev.ia, undefined, 'o host de desenvolvimento nunca teve ia')
+    assert.equal(criarHostFalso().ia, undefined, 'o falso só tem quando o teste pede')
+    assert.deepEqual(verificarHost(dev).problemas, [])
+    assert.deepEqual(verificarHost(criarHostFalso()).problemas, [])
+    assert.deepEqual(verificarHost(criarHostFalso({ ia: async () => null })).problemas, [])
+
+    const daVersaoVelha = criarHostFalso()
+    daVersaoVelha.ia = { completar: async () => null }
+    assert.deepEqual(
+      verificarHost(daVersaoVelha).problemas,
+      ['ia.disponivel precisa ser função'],
+      'é mudança de forma de verdade: por isso o CHANGELOG registra a exceção',
+    )
+    const exemplo = JSON.parse(
+      readFileSync(new URL('./fixtures/jogo-ok/jogo.json', import.meta.url), 'utf8'),
+    )
+    assert.equal(exemplo.capacidades.includes('ia'), false)
+  })
 })
 
 describe('verificarHost', () => {
@@ -122,6 +200,32 @@ describe('verificarHost', () => {
     const dev = criarHostDeDesenvolvimento({ jogoId: 'x', janela: janelaFalsa() })
     assert.deepEqual(verificarHost(criarHostFalso(), { exigidas: ['sala'] }).problemas, [])
     assert.deepEqual(verificarHost(dev, { exigidas: ['sala'] }).problemas, [])
+  })
+
+  test('os dois hosts do SDK cumprem o contrato com a sala ao vivo e o progresso exigidos', () => {
+    const dev = criarHostDeDesenvolvimento({ jogoId: 'x', janela: janelaFalsa() })
+    const exigidas = ['salaAoVivo', 'progresso']
+    assert.deepEqual(verificarHost(criarHostFalso(), { exigidas }).problemas, [])
+    assert.deepEqual(verificarHost(dev, { exigidas }).problemas, [])
+  })
+
+  test('host sem sala ao vivo ou sem progresso reprova quando o jogo exige', () => {
+    const sem = criarHostFalso({ salaAoVivo: false, progresso: false })
+    assert.deepEqual(verificarHost(sem, { exigidas: ['salaAoVivo', 'progresso'] }).problemas, [
+      'falta a capacidade "salaAoVivo"',
+      'falta a capacidade "progresso"',
+    ])
+    assert.equal(verificarHost(sem).ok, true, 'o jogo que não exige roda sem elas')
+  })
+
+  test('sala ao vivo com forma errada reprova no caminho exato', () => {
+    const host = criarHostFalso()
+    host.salaAoVivo = { ...host.salaAoVivo, aoCair: 'não é função' }
+    delete host.salaAoVivo.observarFilhos
+    assert.deepEqual(verificarHost(host).problemas, [
+      'salaAoVivo.observarFilhos precisa ser função',
+      'salaAoVivo.aoCair precisa ser função',
+    ])
   })
 
   test('host sem sala reprova quando o jogo exige, e passa quando não exige', () => {

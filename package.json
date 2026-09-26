@@ -1,6 +1,6 @@
 {
   "name": "@roqueos-games/jogo-sdk",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "O contrato entre o RoqueOS e um jogo: mount(el, host), as capacidades do host, um host para rodar o jogo sozinho, um host falso para teste e o jogo check.",
   "license": "MIT",
   "author": "Roque Ribeiro",
@@ -13,7 +13,8 @@
     ".": "./src/index.js",
     "./host-de-desenvolvimento": "./src/host/desenvolvimento.js",
     "./host-falso": "./src/host/falso.js",
-    "./armazenamento": "./src/host/armazenamento.js"
+    "./armazenamento": "./src/host/armazenamento.js",
+    "./sala-ao-vivo": "./src/host/salaAoVivo.js"
   },
   "bin": {
     "jogo": "./bin/jogo.mjs"

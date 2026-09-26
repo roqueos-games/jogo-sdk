@@ -55,6 +55,9 @@ export const ETIQUETAS = Object.freeze([
 /** A meta description do buscador corta perto disso. */
 export const LIMITE_DO_RESUMO = 160
 
+/** As capacidades que geram convite (link e QR): o jogo que usa uma delas aceita convite. */
+export const CAPACIDADES_COM_CONVITE = Object.freeze(['sala', 'salaAoVivo'])
+
 const ID = /^[a-z][a-z0-9]*$/
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/
 const texto = (v) => typeof v === 'string' && v.trim().length > 0
@@ -160,10 +163,12 @@ export function validarManifesto(m) {
     // O RoqueOS só abre o jogo pelo link do convite (e pelo QR) quando o
     // manifesto diz aceitaConvite. Jogo com sala e sem isso gera um convite
     // que abre o desktop e para ali, sem o jogo e sem erro nenhum.
-    if (caps.includes('sala') && m.aceitaConvite === false) {
-      problemas.push(
-        'capacidades tem sala e aceitaConvite é false: o link do convite abriria o RoqueOS sem abrir o jogo',
-      )
+    for (const c of CAPACIDADES_COM_CONVITE) {
+      if (caps.includes(c) && m.aceitaConvite === false) {
+        problemas.push(
+          `capacidades tem ${c} e aceitaConvite é false: o link do convite abriria o RoqueOS sem abrir o jogo`,
+        )
+      }
     }
   }
   return problemas

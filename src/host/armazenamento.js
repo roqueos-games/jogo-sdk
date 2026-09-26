@@ -7,13 +7,29 @@
 
 export const chaveDoJogo = (jogoId, chave) => `roqueos:${jogoId}:${chave}`
 
-/** Um Storage em memória, para quando o navegador não deixa usar o de verdade. */
+/**
+ * Um Storage em memória, para quando o navegador não deixa usar o de verdade.
+ * Enumera como o de verdade (`length` e `key(i)`), porque a sala ao vivo
+ * precisa achar as folhas de uma sala que já existia antes de a janela abrir.
+ */
 export function armazenamentoEmMemoria() {
   const dados = new Map()
+  // A lista de chaves só é refeita quando uma chave nasce ou some: percorrer
+  // as n chaves com key(i) não pode custar n² numa sala com mil folhas.
+  let chaves = null
   return {
     getItem: (k) => (dados.has(k) ? dados.get(k) : null),
-    setItem: (k, v) => void dados.set(k, String(v)),
-    removeItem: (k) => void dados.delete(k),
+    setItem(k, v) {
+      if (!dados.has(k)) chaves = null
+      dados.set(k, String(v))
+    },
+    removeItem(k) {
+      if (dados.delete(k)) chaves = null
+    },
+    key: (i) => (chaves ??= [...dados.keys()])[i] ?? null,
+    get length() {
+      return dados.size
+    },
   }
 }
 

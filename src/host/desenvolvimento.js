@@ -6,16 +6,22 @@
 // console no lugar do analytics, e nenhuma capacidade de IA (o jogo que usa IA
 // precisa funcionar sem ela, e é aqui que se prova que funciona).
 //
-// A sala online roda entre duas abas do mesmo navegador: a sala mora no
-// localStorage, e o evento `storage` leva a mudança de uma aba para a outra.
-// Sem rede e sem Firebase, para quem contribui testar a partida online sem
-// conta nenhuma.
+// A sala online (a `sala` de dois e a `salaAoVivo` de vários) roda entre abas
+// do mesmo navegador: a sala mora no localStorage, e o evento `storage` leva
+// a mudança de uma aba para a outra. Sem rede e sem Firebase, para quem
+// contribui testar a partida online sem conta nenhuma. O `progresso` também
+// mora no localStorage, e recusa o que o Firestore recusaria.
 
 import { VERSAO_DO_CONTRATO } from '../contrato.js'
 import { normalizarIdioma } from '../idiomas.js'
 import { armazenamentoDoJogo, armazenamentoEmMemoria, chaveDoJogo } from './armazenamento.js'
+import { capacidadeProgresso, erroIndisponivel } from './progresso.js'
 import { capacidadeSala, criarOuvintes, gerarCodigo } from './sala.js'
+import { criarSalaAoVivo } from './salaAoVivo.js'
 
+// A leitura de teste também serve à sala ao vivo: o WebKit só entrega o
+// evento `storage` à aba que já leu o localStorage (medido no WebKit 26.4,
+// 26/09/2026), e a aba aberta pelo convite não pode ficar surda até ler.
 function storageDisponivel(janela, qual = 'localStorage') {
   try {
     const s = janela[qual]
@@ -118,7 +124,8 @@ export function criarHostDeDesenvolvimento({
   registro = console,
 } = {}) {
   if (!jogoId) throw new TypeError('criarHostDeDesenvolvimento precisa do jogoId')
-  const storage = storageDisponivel(janela) ?? armazenamentoEmMemoria()
+  const storageDoNavegador = storageDisponivel(janela)
+  const storage = storageDoNavegador ?? armazenamentoEmMemoria()
   const armazenamento = armazenamentoDoJogo(jogoId, storage)
 
   const salas = salasNoStorage(jogoId, storage, janela)
@@ -148,6 +155,55 @@ export function criarHostDeDesenvolvimento({
       }
     })
   }
+
+  // A sala ao vivo entre abas: mesmo jogador por aba e mesmo link ?sala= da
+  // `sala`. A aba que fecha roda o que armou com aoCair (o onDisconnect do
+  // banco), e `conectado` segue o navigator.onLine.
+  const nav = janela.navigator ?? {}
+  const aoVivo = criarSalaAoVivo({
+    storage,
+    jogoId,
+    jogador: () => jogador,
+    link: (codigo) => linkDaSala(janela, codigo),
+    convite: () => conviteDaUrl(janela),
+    registro,
+    conectado: nav.onLine !== false,
+    aoCriar(codigo) {
+      registro.info(
+        `[${jogoId}] sala ao vivo ${codigo}: abra ${linkDaSala(janela, codigo)} em outra aba`,
+      )
+    },
+  })
+  if (typeof janela.addEventListener === 'function') {
+    janela.addEventListener('storage', aoVivo.receberEventoDoStorage)
+    janela.addEventListener('pagehide', aoVivo.cair)
+    janela.addEventListener('online', () => aoVivo.definirConexao(true))
+    janela.addEventListener('offline', () => aoVivo.definirConexao(false))
+  }
+
+  // O progresso no localStorage, em roqueos:<jogo>:progresso. Sem localStorage
+  // de verdade (Safari privado) não há onde guardar: disponivel() é false,
+  // em vez de fingir que salvou numa memória que some ao recarregar.
+  const chaveDoProgresso = chaveDoJogo(jogoId, 'progresso')
+  const progresso = capacidadeProgresso({
+    registro,
+    disponivel: () => storageDoNavegador !== null,
+    guardado: {
+      ler() {
+        const bruto = storageDoNavegador.getItem(chaveDoProgresso)
+        if (bruto === null) return null
+        const doc = JSON.parse(bruto)
+        if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+          throw erroIndisponivel(new Error(`${chaveDoProgresso} não guarda um documento`))
+        }
+        return doc
+      },
+      gravar(doc) {
+        storageDoNavegador.setItem(chaveDoProgresso, JSON.stringify(doc))
+        return true
+      },
+    },
+  })
 
   let contexto = null
   const audio = {
@@ -195,7 +251,6 @@ export function criarHostDeDesenvolvimento({
     },
   }
 
-  const nav = janela.navigator ?? {}
   const ouvintesDeIdioma = new Set()
   if (typeof janela.addEventListener === 'function') {
     janela.addEventListener('languagechange', () => {
@@ -210,8 +265,12 @@ export function criarHostDeDesenvolvimento({
       atual: () => ({ uid: null, nome: null }),
       aoMudar: () => () => {},
     },
-    avisar(mensagem, { tipo = 'info' } = {}) {
-      registro.info(`[${jogoId}] ${tipo}: ${mensagem}`)
+    // Aqui o aviso é uma linha no console; o fixo sai marcado, para quem
+    // desenvolve ver que aquele o jogador teria de fechar.
+    avisar(mensagem, { tipo = 'info', fixo = false } = {}) {
+      registro.info(
+        `[${jogoId}] ${tipo}${fixo ? ' (fixo, até o jogador fechar)' : ''}: ${mensagem}`,
+      )
     },
     audio,
     desempenho: {
@@ -249,5 +308,7 @@ export function criarHostDeDesenvolvimento({
       liberar() {},
     },
     sala,
+    salaAoVivo: aoVivo.capacidade,
+    progresso,
   }
 }
