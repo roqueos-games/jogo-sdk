@@ -157,6 +157,14 @@ export function validarManifesto(m) {
           (erradas.some((c) => c in CAPACIDADES) ? ' (as obrigatórias o host sempre dá)' : ''),
       )
     }
+    // O RoqueOS só abre o jogo pelo link do convite (e pelo QR) quando o
+    // manifesto diz aceitaConvite. Jogo com sala e sem isso gera um convite
+    // que abre o desktop e para ali, sem o jogo e sem erro nenhum.
+    if (caps.includes('sala') && m.aceitaConvite === false) {
+      problemas.push(
+        'capacidades tem sala e aceitaConvite é false: o link do convite abriria o RoqueOS sem abrir o jogo',
+      )
+    }
   }
   return problemas
 }

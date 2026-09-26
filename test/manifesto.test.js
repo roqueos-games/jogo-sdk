@@ -57,6 +57,24 @@ describe('validarManifesto', () => {
     assert.match(validarManifesto(m)[0], /as obrigatórias o host sempre dá/)
   })
 
+  test('sala entra em capacidades, com convite aceito', () => {
+    const m = base()
+    m.capacidades = ['sala']
+    m.aceitaConvite = true
+    assert.deepEqual(validarManifesto(m), [])
+  })
+
+  // O link e o QR do convite só abrem o jogo no RoqueOS quando o manifesto
+  // diz aceitaConvite. Sem isso o convidado cai no desktop e para ali.
+  test('sala sem aceitaConvite reprova: o convite não abriria o jogo', () => {
+    const m = base()
+    m.capacidades = ['sala']
+    m.aceitaConvite = false
+    assert.deepEqual(validarManifesto(m), [
+      'capacidades tem sala e aceitaConvite é false: o link do convite abriria o RoqueOS sem abrir o jogo',
+    ])
+  })
+
   test('slug e id no formato', () => {
     const m = base()
     m.slug = 'Jogo Da Velha'

@@ -52,6 +52,37 @@ As capacidades, com o motivo de cada uma, estão em [`src/contrato.js`](src/cont
 motivo é parte do contrato: capacidade sem motivo vira atalho para o jogo alcançar o que não
 devia.
 
+- Obrigatórias, que todo host entrega: `identidade`, `avisar`, `audio`, `desempenho`,
+  `metricas`, `placar`, `armazenamento` e `idioma`.
+- Opcionais, que o jogo pede em `capacidades` quando não vive sem elas: `tela`, `teclado`, `ia`
+  e `sala`.
+
+### Partida online: a capacidade `sala` (desde 0.2.0)
+
+Dois jogadores, um tabuleiro: um cria a sala e recebe um código de cinco letras e um link (o
+QR), o outro entra pelo código ou pelo link, e os dois trocam o estado em tempo real. O jogo não
+fala com banco nenhum; quem guarda a sala é o host, e o estado do tabuleiro é opaco para ele.
+Sem conta não há sala.
+
+```js
+const { codigo, link } = await host.sala.criar({ estadoInicial, vez: 'brancas' })
+const parar = host.sala.observar(codigo, (sala) => desenhar(sala)) // sala ou null
+await host.sala.jogar(codigo, { estado, vez: 'pretas' })
+
+const convite = host.sala.conviteRecebido() // aberto pelo link? o código, ou null
+const r = await host.sala.entrar(convite) // { ok } ou { erro: 'nao-encontrada' | 'propria' | 'cheia' | 'sem-conta' }
+```
+
+A sala chega com `anfitriao`, `nomeDoAnfitriao`, `convidado`, `nomeDoConvidado`, `situacao`
+(`esperando`, `jogando`, `encerrada`), `vez`, `estado`, `vencedor` e `anfitriaoSaiu`. O jogo que
+usa sala declara `"capacidades": ["sala"]` e `"aceitaConvite": true` no `jogo.json`.
+
+No `yarn dev` do jogo, o host de desenvolvimento joga online entre duas abas do mesmo navegador:
+crie a sala numa aba e abra o link (a própria página com `?sala=<código>`) em outra aba nova. Não
+duplique a aba, que copia o `sessionStorage` e vira o mesmo jogador. No teste, o host falso faz
+o outro jogador com `host.disparar('sala', { acao: 'entrar', codigo, uid: 'bia' })`, e
+`criarHostFalso({ convite: 'ABC23' })` abre o jogo como se viesse do link.
+
 ## Pré-requisitos
 
 - Node 24 (o `.nvmrc` diz), ou 22 no mínimo.
@@ -70,7 +101,7 @@ Não há dependência de runtime. As de desenvolvimento são ESLint e Prettier.
 Num repo de jogo, o SDK entra como dependência git pinada por tag:
 
 ```json
-{ "dependencies": { "@roqueos-games/jogo-sdk": "github:roqueos-games/jogo-sdk#v0.1.0" } }
+{ "dependencies": { "@roqueos-games/jogo-sdk": "github:roqueos-games/jogo-sdk#v0.2.0" } }
 ```
 
 ```js
@@ -101,7 +132,8 @@ src/
   idiomas.js          os dez idiomas
   e2e.js              o modo de teste de ponta a ponta
   verificacao.js      o que o jogo check confere
-  host/               desenvolvimento, falso e o espaço de chaves do armazenamento
+  host/               desenvolvimento, falso, o espaço de chaves do armazenamento e as
+                      regras da sala que os dois dividem
 bin/jogo.mjs          o CLI
 test/                 node:test, com um jogo de exemplo em test/fixtures/jogo-ok
 docs/contrato.svg     o diagrama acima
@@ -139,6 +171,13 @@ in the browser, and in tests.
 - `criarHostFalso()` records every call for tests.
 - `jogo check` validates a game repo: `jogo.json`, texts in the ten languages, asset
   provenance, and no install-time scripts.
+- Optional capabilities: `tela` (fullscreen), `teclado` (keyboard focus), `ia` (AI completion)
+  and, since 0.2.0, `sala`: a two-player online match. One player creates a room and gets a
+  five-letter code and an invite link, the other joins, and both exchange the board state. The
+  game never talks to a database, the state is opaque to the host, and there is no room without
+  an account. The dev host plays it across two tabs of the same browser (`localStorage` plus the
+  `storage` event, no network), and the fake host simulates the other player with
+  `host.disparar('sala', { acao, codigo })`.
 
 Requirements: Node 24 (22 minimum) and Yarn 1.22. Run `yarn install --ignore-scripts`, then
 `yarn verificar`. The code and comments are in Brazilian Portuguese, which is the canonical

@@ -94,7 +94,49 @@ export const CAPACIDADES = Object.freeze({
     porque:
       'completar({ sistema, mensagens }) devolve texto ou null. A chave do provedor nunca chega no jogo, e o host decide limite e consentimento, porque cada chamada pode custar dinheiro na conta do jogador.',
   },
+  // A sala, função por função:
+  //
+  //   criar({ estadoInicial, vez })  → { codigo, link }. Quem joga agora vira
+  //       o anfitrião (o host sabe quem é). Sem conta, lança Error com
+  //       .codigo = 'sem-conta'.
+  //   entrar(codigo)  → { ok: true } | { ok: true, reentrada: true } |
+  //       { erro: 'nao-encontrada' | 'propria' | 'cheia' | 'sem-conta' }.
+  //       Reentrada é quem já era o convidado voltando (recarregou a página).
+  //   observar(codigo, fn)  → parar(). fn recebe a sala, ou null se ela
+  //       sumiu, a primeira vez logo depois e de novo a cada mudança. Nunca
+  //       dentro do próprio observar: no banco de verdade a sala chega depois.
+  //   jogar(codigo, { estado, vez, vencedor, situacao })  estado e vez sempre;
+  //       vencedor e situacao só quando mudam.
+  //   encerrar(codigo, vencedor)  melhor esforço, nunca lança.
+  //   conviteRecebido()  o código do convite com que esta janela foi aberta
+  //       (link ou QR), ou null.
+  //
+  // A sala que o observar entrega: { anfitriao, nomeDoAnfitriao, convidado,
+  // nomeDoConvidado, situacao, vez, estado, vencedor, anfitriaoSaiu }, com
+  // situacao em SITUACOES_DA_SALA. O jogo sabe o próprio lado pelo que
+  // chamou (quem criou é o anfitrião, quem entrou é o convidado) e não
+  // precisa comparar uid. Os nomes são do SDK; traduzir para os campos do
+  // banco é trabalho do host do RoqueOS, e o banco não muda por causa disto.
+  sala: {
+    obrigatoria: false,
+    forma: {
+      criar: FN,
+      entrar: FN,
+      observar: FN,
+      jogar: FN,
+      encerrar: FN,
+      conviteRecebido: FN,
+    },
+    porque:
+      'Partida online de dois jogadores: um cria a sala e recebe código e link (o QR), o outro entra, e os dois trocam o estado do tabuleiro. O jogo não fala com banco nenhum: quem guarda a sala é o host, e o estado é opaco para ele, que só repassa. Sem conta não há sala: criar lança e entrar devolve sem-conta, e é o jogo que avisa o jogador.',
+  },
 })
+
+/** As situações de uma sala, na ordem em que acontecem. */
+export const SITUACOES_DA_SALA = Object.freeze(['esperando', 'jogando', 'encerrada'])
+
+/** Os motivos de `sala.entrar` recusar, e o de `sala.criar` lançar ('sem-conta'). */
+export const ERROS_DA_SALA = Object.freeze(['nao-encontrada', 'propria', 'cheia', 'sem-conta'])
 
 export const OBRIGATORIAS = Object.freeze(
   Object.keys(CAPACIDADES).filter((c) => CAPACIDADES[c].obrigatoria),

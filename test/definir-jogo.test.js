@@ -82,4 +82,30 @@ describe('definirJogo', () => {
     assert.throws(() => jogo.mount(el, criarHostFalso()), /"ia"/)
     assert.doesNotThrow(() => jogo.mount(el, criarHostFalso({ ia: async () => 'oi' })))
   })
+
+  // O Xadrez e as Damas online: um host sem sala (um RoqueOS antigo, um
+  // host de terceiro) recusa na montagem, com a lista inteira do que falta,
+  // em vez de o jogo quebrar no clique de "jogar online".
+  test('jogo que exige sala não monta em host sem sala, e diz tudo o que falta', () => {
+    const jogo = definirJogo({
+      id: 'xadrez',
+      capacidades: ['sala'],
+      montar: () => ({ desmontar() {} }),
+    })
+    const semSala = criarHostFalso({ sala: false })
+    delete semSala.teclado.liberar
+    assert.throws(
+      () => jogo.mount(el, semSala),
+      (e) =>
+        /host não cumpre o contrato: /.test(e.message) &&
+        e.message.includes('falta a capacidade "sala"') &&
+        e.message.includes('teclado.liberar precisa ser função'),
+    )
+    assert.doesNotThrow(() => jogo.mount(el, criarHostFalso()))
+  })
+
+  test('jogo que não exige sala monta em host sem ela', () => {
+    const { jogo } = jogoQueConta()
+    assert.doesNotThrow(() => jogo.mount(el, criarHostFalso({ sala: false })))
+  })
 })

@@ -9,6 +9,8 @@ export {
   CAPACIDADES,
   OBRIGATORIAS,
   OPCIONAIS,
+  SITUACOES_DA_SALA,
+  ERROS_DA_SALA,
   verificarHost,
 } from './contrato.js'
 export { IDIOMAS, IDIOMA_CANONICO, IDIOMA_DE_RECUO, normalizarIdioma } from './idiomas.js'
