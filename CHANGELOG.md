@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 (26/09/2026)
+
+- `jogo check`: jogo fechado (`license: UNLICENSED` no package.json) aceita asset com
+  licença de terceiro fora da lista aberta, como um personagem do Mixamo, porque o repo não
+  publica o arquivo. Continua exigindo a linha no ASSETS.md, a licença escrita e a origem;
+  "?" e "desconhecida" reprovam. Jogo aberto não muda.
+
 ## 0.2.0 (25/09/2026)
 
 - Capacidade opcional `sala`, a partida online de dois jogadores que o Xadrez e as Damas

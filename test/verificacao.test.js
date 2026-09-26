@@ -81,6 +81,27 @@ describe('jogo check', () => {
     assert.match(r.saida, /licença "Sketchfab Standard"/)
   })
 
+  test('jogo fechado aceita asset com licença de terceiro, mas não sem licença', () => {
+    const fechar = (p, licenca) => {
+      editarJson(join(p, 'package.json'), (v) => (v.license = 'UNLICENSED'))
+      writeFileSync(join(p, 'public/corredor.glb'), 'x')
+      appendFileSync(
+        join(p, 'ASSETS.md'),
+        `| \`public/corredor.glb\` | ${licenca} | Mixamo, personagem Vanguard |\n`,
+      )
+    }
+    const comTerceiro = comDefeito((p) => fechar(p, 'Mixamo (termos de uso da Adobe)'))
+    assert.equal(comTerceiro.codigo, 0, comTerceiro.saida)
+    assert.match(comDefeito((p) => fechar(p, 'desconhecida')).saida, /corredor\.glb sem licença/)
+    assert.match(comDefeito((p) => fechar(p, '?')).saida, /corredor\.glb sem licença/)
+    // O mesmo asset num jogo aberto continua reprovando.
+    const aberto = comDefeito((p) => {
+      writeFileSync(join(p, 'public/corredor.glb'), 'x')
+      appendFileSync(join(p, 'ASSETS.md'), '| `public/corredor.glb` | Mixamo | Mixamo |\n')
+    })
+    assert.match(aberto.saida, /licença "Mixamo"/)
+  })
+
   test('script que roda sozinho no install reprova, no jogo e no SDK', () => {
     const quebrar = (p) => editarJson(join(p, 'package.json'), (v) => (v.scripts.prepare = 'husky'))
     assert.match(comDefeito(quebrar).saida, /"prepare"/)

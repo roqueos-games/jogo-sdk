@@ -102,6 +102,14 @@ function arquivosDe(pasta) {
   return saida
 }
 
+function licencaDoPacote(raiz) {
+  try {
+    return lerJson(join(raiz, 'package.json')).license ?? null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Cada arquivo em `public/` precisa de uma linha no ASSETS.md com a licença e
  * a origem. Custou: um modelo 3D de pacote comercial e animações de terceiro
@@ -125,6 +133,10 @@ export function conferirAssets(raiz) {
         .map((c) => c.trim().replace(/`/g, '')),
     )
   const declarados = new Map(linhas.filter((c) => c.length >= 3).map((c) => [c[0], c]))
+  // Jogo fechado (`license: UNLICENSED`) não publica o arquivo para o mundo, então pode
+  // levar asset de terceiro com licença de uso fora da lista (ex.: personagem do Mixamo).
+  // Continua obrigado a dizer qual licença e de onde veio: o que não pode é não saber.
+  const fechado = licencaDoPacote(raiz) === 'UNLICENSED'
   const problemas = []
   for (const a of arquivos) {
     const linha = declarados.get(a)
@@ -132,7 +144,13 @@ export function conferirAssets(raiz) {
       problemas.push(`${a} sem linha no ASSETS.md (caminho | licença | origem)`)
       continue
     }
-    if (!LICENCAS_DE_ASSET.includes(linha[1])) {
+    if (fechado) {
+      if (!linha[1] || /^(\?|desconhecida)$/i.test(linha[1])) {
+        problemas.push(
+          `${a} sem licença: jogo fechado aceita licença de terceiro, mas não "não sei"`,
+        )
+      }
+    } else if (!LICENCAS_DE_ASSET.includes(linha[1])) {
       problemas.push(`${a} com licença "${linha[1]}", fora de ${LICENCAS_DE_ASSET.join(', ')}`)
     }
     if (!linha[2]) problemas.push(`${a} sem origem`)

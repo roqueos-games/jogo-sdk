@@ -1,6 +1,6 @@
 {
   "name": "@roqueos-games/jogo-sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "O contrato entre o RoqueOS e um jogo: mount(el, host), as capacidades do host, um host para rodar o jogo sozinho, um host falso para teste e o jogo check.",
   "license": "MIT",
   "author": "Roque Ribeiro",
