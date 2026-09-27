@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "extraKnownMarketplaces": {
+    "roqueos": {
+      "source": {
+        "source": "directory",
+        "path": "../roqueos-ecosystem"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "roqueos-kit@roqueos": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(roqueos-gate*)",
+      "Bash(roqueos-doctor*)",
+      "Bash(roqueos-graph*)",
+      "Bash(roqueos-harness*)",
+      "Bash(roqueos-secrets status*)",
+      "Bash(roqueos-secrets exec*)",
+      "Bash(yarn verificar*)",
+      "Bash(yarn test*)",
+      "Bash(yarn lint*)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git branch*)"
+    ],
+    "deny": [
+      "Bash(cat ~/.ssh/id_*)",
+      "Bash(security find-generic-password:* -w*)",
+      "Bash(printenv)",
+      "Bash(env)",
+      "Bash(rm -rf /*)"
+    ]
+  },
+  "$comment": "Repo ao lado do roqueos-ecosystem, em roqueos-repos/. Quem registra o marketplace de verdade e o scripts/setup-mac.sh do roqueos-ecosystem, uma vez por maquina."
+}
