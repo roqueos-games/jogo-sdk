@@ -190,3 +190,99 @@ describe('jogo assets importar, de ponta a ponta', () => {
     }
   })
 })
+
+describe('jogo assets importar com texturasFora (o caminho do iPhone)', () => {
+  test('sai .gltf, .bin e a textura WebP ao lado, cada um com linha e SHA no ledger', async () => {
+    const sharp = (await import('sharp')).default
+    mkdirSync(join(SDK, '.tmp-teste'), { recursive: true })
+    const jogo = mkdtempSync(join(SDK, '.tmp-teste', 'jogo-'))
+    try {
+      const doc = new Document()
+      const buffer = doc.createBuffer()
+      const pos = doc
+        .createAccessor()
+        .setType('VEC3')
+        .setArray(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]))
+        .setBuffer(buffer)
+      const uv = doc
+        .createAccessor()
+        .setType('VEC2')
+        .setArray(new Float32Array([0, 0, 1, 0, 0, 1]))
+        .setBuffer(buffer)
+      // Textura de cor única vira cor no material (o prune do gltf-transform faz isso): xadrez.
+      const px = Buffer.alloc(8 * 8 * 3)
+      for (let i = 0; i < 64; i++) px.fill((i + Math.floor(i / 8)) % 2 ? 230 : 20, i * 3, i * 3 + 3)
+      const png = await sharp(px, { raw: { width: 8, height: 8, channels: 3 } })
+        .png()
+        .toBuffer()
+      const tex = doc.createTexture('cor').setImage(png).setMimeType('image/png')
+      const mat = doc.createMaterial('lataria').setBaseColorTexture(tex)
+      const prim = doc
+        .createPrimitive()
+        .setAttribute('POSITION', pos)
+        .setAttribute('TEXCOORD_0', uv)
+        .setMaterial(mat)
+      doc
+        .createScene()
+        .addChild(doc.createNode('Carro').setMesh(doc.createMesh('Carro').addPrimitive(prim)))
+      mkdirSync(join(jogo, '.local/asset-source'), { recursive: true })
+      writeFileSync(
+        join(jogo, '.local/asset-source/carro.glb'),
+        await new NodeIO().writeBinary(doc),
+      )
+      writeFileSync(
+        join(jogo, 'package.json'),
+        JSON.stringify({ name: 'x', license: 'UNLICENSED' }),
+      )
+      mkdirSync(join(jogo, 'assets'))
+      writeFileSync(
+        join(jogo, 'assets/importar.json'),
+        JSON.stringify({
+          itens: [
+            item({
+              id: 'carro',
+              saida: 'public/games/x/carro.gltf',
+              texturasFora: true,
+              fonte: { arquivo: '.local/asset-source/carro.glb' },
+            }),
+          ],
+        }),
+      )
+      const r = spawnSync(process.execPath, [CLI, 'assets', 'importar'], {
+        cwd: jogo,
+        encoding: 'utf8',
+      })
+      assert.equal(r.status, 0, r.stdout + r.stderr)
+      const gltf = JSON.parse(readFileSync(join(jogo, 'public/games/x/carro.gltf'), 'utf8'))
+      assert.deepEqual(
+        gltf.images.map((i) => i.uri),
+        ['carro_t0.webp'],
+      )
+      assert.equal(gltf.images[0].bufferView, undefined)
+      // O segundo buffer é o de reserva do meshopt: vazio e sem arquivo.
+      assert.deepEqual(
+        gltf.buffers.filter((b) => b.uri).map((b) => b.uri),
+        ['carro.bin'],
+      )
+      const ledger = readFileSync(join(jogo, 'ASSETS.md'), 'utf8')
+      for (const arq of ['carro.gltf', 'carro.bin', 'carro_t0.webp']) {
+        const dados = readFileSync(join(jogo, 'public/games/x', arq))
+        assert.match(
+          ledger,
+          new RegExp(
+            `public/games/x/${arq.replace('.', '\\.')}\` \\| CC0-1\\.0 \\| [^|]+ \\| ${sha256(dados)}`,
+          ),
+        )
+      }
+      const { conferirAssets } = await import('../src/verificacao.js')
+      assert.deepEqual(conferirAssets(jogo), [])
+    } finally {
+      rmSync(jogo, { recursive: true, force: true })
+    }
+  })
+
+  test('texturasFora com saída .glb reprova antes de baixar', () => {
+    const p = validarLista({ itens: [item({ texturasFora: true })] })
+    assert.match(p.join('\n'), /saida precisa ser um \.gltf/)
+  })
+})

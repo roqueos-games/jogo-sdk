@@ -60,7 +60,8 @@ Sketchfab, Mixamo, Fab), do mesmo jeito em todos:
    `jogo assets importar` gera o GLB comprimido, fixa o original em `assets/source-lock.json` e
    escreve a linha do ASSETS.md com o SHA-256. O jogo instala as ferramentas em devDependencies:
    `@gltf-transform/core`, `extensions` e `functions` 4.5.1, `meshoptimizer` 1.1.1 e `sharp`
-   0.35.4. FBX, OBJ e `.blend` pedem o Blender.
+   0.35.4. FBX, OBJ e `.blend` pedem o Blender. Jogo que roda no iPhone usa `"texturasFora": true`: sai `.gltf`,
+   `.bin` e cada textura WebP ao lado, porque o WKWebView não mostra textura embutida no GLB.
 2. No jogo, `@roqueos-games/jogo-sdk/modelos` carrega e acende:
 
 ```js

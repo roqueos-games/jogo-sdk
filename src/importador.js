@@ -7,7 +7,8 @@
 //       "licenca": "CC0-1.0", "origem": "https://polyhaven.com/a/...",
 //       "fonte": { "polyhaven": "...", "resolucao": "1k" }          // baixa pela API
 //            ou { "arquivo": ".local/asset-source/x.fbx" }          // baixado à mão (Sketchfab, Fab, Mixamo)
-//       "texturaMax": 1024, "simplificar": 0.5, "manter": "^Tronco|^Folha" } ] }
+//       "texturaMax": 1024, "simplificar": 0.5, "manter": "^Tronco|^Folha",
+//       "texturasFora": true } ] }     // .gltf + .bin + .webp ao lado, para o iPhone (ver abaixo)
 //
 // Saídas:
 // - o GLB comprimido (EXT_meshopt_compression, texturas WebP) em `saida`;
@@ -45,8 +46,11 @@ export function validarLista(lista) {
     if (!item?.id) problemas.push(`${onde}: sem id`)
     else if (ids.has(item.id)) problemas.push(`${onde}: id repetido`)
     ids.add(item?.id)
-    if (!item?.saida?.startsWith('public/') || !item.saida.endsWith('.glb'))
-      problemas.push(`${onde}: saida precisa ser um .glb dentro de public/`)
+    const extensao = item?.texturasFora ? '.gltf' : '.glb'
+    if (!item?.saida?.startsWith('public/') || !item.saida.endsWith(extensao))
+      problemas.push(
+        `${onde}: saida precisa ser um ${extensao} dentro de public/${item?.texturasFora ? ' (texturasFora escreve .gltf, .bin e as texturas ao lado)' : ''}`,
+      )
     if (!item?.licenca) problemas.push(`${onde}: sem licença`)
     if (!item?.origem) problemas.push(`${onde}: sem origem (a página de onde veio)`)
     const f = item?.fonte ?? {}
@@ -292,28 +296,59 @@ export async function importar(raiz, { apenas } = {}) {
       .reduce((n, p) => n + (p.getIndices()?.getCount() ?? 0) / 3, 0)
     const saida = dentro(raiz, item.saida)
     mkdirSync(dirname(saida), { recursive: true })
-    const binario = await io.writeBinary(doc)
-    writeFileSync(saida, binario)
-    const sha = sha256(binario)
-    writeFileSync(
-      ledger,
-      registrarNoLedger(
-        existsSync(ledger) ? readFileSync(ledger, 'utf8') : '# Origem dos assets\n',
-        {
-          caminho: item.saida,
-          licenca: item.licenca,
-          origem: item.origem,
-          sha,
-        },
-      ),
-    )
+    // Os arquivos que este item escreve, cada um com o próprio SHA no ledger.
+    const escritos = []
+    if (item.texturasFora) {
+      // .gltf com a geometria num .bin e cada textura num .webp ao lado: o WKWebView do
+      // iPhone não mostra textura embutida no GLB (regra do Farol, medida no aparelho).
+      const nome = item.saida
+        .split('/')
+        .pop()
+        .replace(/\.gltf$/, '')
+      doc
+        .getRoot()
+        .listBuffers()
+        .forEach((b, i) => b.setURI(i ? `${nome}_${i}.bin` : `${nome}.bin`))
+      doc
+        .getRoot()
+        .listTextures()
+        .forEach((tx, i) =>
+          tx.setURI(`${nome}_t${i}.${(tx.getMimeType() || 'image/webp').split('/')[1]}`),
+        )
+      const { json, resources } = await io.writeJSON(doc)
+      const texto = Buffer.from(JSON.stringify(json, null, 2))
+      writeFileSync(saida, texto)
+      escritos.push({ caminho: item.saida, dados: texto })
+      for (const [uri, dados] of Object.entries(resources)) {
+        const caminho = `${dirname(item.saida)}/${uri}`
+        writeFileSync(dentro(raiz, caminho), dados)
+        escritos.push({ caminho, dados })
+      }
+    } else {
+      const binario = await io.writeBinary(doc)
+      writeFileSync(saida, binario)
+      escritos.push({ caminho: item.saida, dados: binario })
+    }
+    let textoLedger = existsSync(ledger) ? readFileSync(ledger, 'utf8') : '# Origem dos assets\n'
+    for (const e of escritos) {
+      textoLedger = registrarNoLedger(textoLedger, {
+        caminho: e.caminho,
+        licenca: item.licenca,
+        origem: item.origem,
+        sha: sha256(e.dados),
+      })
+    }
+    writeFileSync(ledger, textoLedger)
+    const bytes = escritos.reduce((n, e) => n + e.dados.length, 0)
+    const sha = sha256(escritos[0].dados)
     // Grava a cada item: download que cai no meio não perde o que já entrou.
     mkdirSync(dirname(caminhoTrava), { recursive: true })
     writeFileSync(caminhoTrava, `${JSON.stringify({ files: trava }, null, 2)}\n`)
     resumo.push({
       id: item.id,
       saida: item.saida,
-      bytes: binario.length,
+      bytes,
+      arquivos: escritos.length,
       triangulos: Math.round(triangulos),
       sha,
     })

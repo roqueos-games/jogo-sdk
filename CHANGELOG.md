@@ -17,6 +17,8 @@ continua na versão 1: nada aqui muda a forma de uma capacidade, e o host do Roq
   Blender sem janela) em GLB com geometria meshopt e textura WebP. Fixa o SHA-256 do original em
   `assets/source-lock.json` (original que mudou na origem para o import) e escreve a linha do
   ASSETS.md com o SHA-256 da saída. As dependências pesadas são do jogo, em devDependencies.
+  Com `texturasFora`, sai `.gltf` + `.bin` + texturas ao lado, cada arquivo com a própria linha:
+  o WKWebView do iPhone não mostra textura embutida no GLB.
 - `jogo olho <rótulo>`: o roteiro do jogo (`olho/roteiro.mjs`) leva até a partida, e o olho tira
   as fotos e mede o quadro (p50, p99, pior, acima de 100 ms) em desktop no perfil alto, celular e
   TV no baixo, em pt-BR, gravando o renderizador que o WebGL reportou.
