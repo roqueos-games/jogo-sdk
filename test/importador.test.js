@@ -53,6 +53,28 @@ describe('lista de importação', () => {
     assert.match(p.join('\n'), /item "e": asset do Fab não sai cru/)
   })
 
+  test('textura e hdri: a forma da saída e a fonte da Poly Haven', () => {
+    const ok = validarLista({
+      itens: [
+        item({ id: 'areia', tipo: 'textura', saida: 'public/games/x/texturas/areia' }),
+        item({ id: 'ceu', tipo: 'hdri', saida: 'public/games/x/ceu.hdr' }),
+      ],
+    })
+    assert.deepEqual(ok, [])
+    const p = validarLista({
+      itens: [
+        item({ id: 'a', tipo: 'textura', saida: 'public/games/x/areia.webp' }),
+        item({ id: 'b', tipo: 'hdri', saida: 'public/games/x/ceu.exr' }),
+        item({ id: 'c', tipo: 'hdri', saida: 'public/c.hdr', fonte: { arquivo: 'x.hdr' } }),
+        item({ id: 'd', tipo: 'som' }),
+      ],
+    }).join('\n')
+    assert.match(p, /item "a": saida de textura é uma pasta/)
+    assert.match(p, /item "b": saida de hdri precisa ser um \.hdr/)
+    assert.match(p, /item "c": hdri vem da Poly Haven/)
+    assert.match(p, /item "d": tipo "som" fora de modelo, textura, hdri/)
+  })
+
   test('lista vazia reprova', () => {
     assert.deepEqual(validarLista({ itens: [] }), ['assets/importar.json sem itens'])
   })

@@ -37,6 +37,9 @@ export function dentro(base, caminho) {
   return alvo
 }
 
+/** O que o importador sabe trazer: modelo (GLB/glTF), textura PBR e céu HDR da Poly Haven. */
+export const TIPOS = Object.freeze(['modelo', 'textura', 'hdri'])
+
 /** Valida a lista antes de baixar qualquer coisa: erro de digitação não gasta download. */
 export function validarLista(lista) {
   const problemas = []
@@ -46,11 +49,24 @@ export function validarLista(lista) {
     if (!item?.id) problemas.push(`${onde}: sem id`)
     else if (ids.has(item.id)) problemas.push(`${onde}: id repetido`)
     ids.add(item?.id)
-    const extensao = item?.texturasFora ? '.gltf' : '.glb'
-    if (!item?.saida?.startsWith('public/') || !item.saida.endsWith(extensao))
+    const tipo = item?.tipo ?? 'modelo'
+    if (!TIPOS.includes(tipo)) problemas.push(`${onde}: tipo "${tipo}" fora de ${TIPOS.join(', ')}`)
+    if (tipo === 'modelo') {
+      const extensao = item?.texturasFora ? '.gltf' : '.glb'
+      if (!item?.saida?.startsWith('public/') || !item.saida.endsWith(extensao))
+        problemas.push(
+          `${onde}: saida precisa ser um ${extensao} dentro de public/${item?.texturasFora ? ' (texturasFora escreve .gltf, .bin e as texturas ao lado)' : ''}`,
+        )
+    } else if (tipo === 'hdri') {
+      if (!item?.saida?.startsWith('public/') || !item.saida.endsWith('.hdr'))
+        problemas.push(`${onde}: saida de hdri precisa ser um .hdr dentro de public/`)
+    } else if (!item?.saida?.startsWith('public/') || /\.\w+$/.test(item.saida)) {
       problemas.push(
-        `${onde}: saida precisa ser um ${extensao} dentro de public/${item?.texturasFora ? ' (texturasFora escreve .gltf, .bin e as texturas ao lado)' : ''}`,
+        `${onde}: saida de textura é uma pasta dentro de public/ (cor, normal e arm vão nela)`,
       )
+    }
+    if (tipo !== 'modelo' && !item?.fonte?.polyhaven)
+      problemas.push(`${onde}: ${tipo} vem da Poly Haven (fonte.polyhaven)`)
     if (!item?.licenca) problemas.push(`${onde}: sem licença`)
     if (!item?.origem) problemas.push(`${onde}: sem origem (a página de onde veio)`)
     const f = item?.fonte ?? {}
@@ -193,14 +209,7 @@ async function fonteDoItem(raiz, item, trava) {
     return arquivo
   }
   const res = item.fonte.resolucao ?? '1k'
-  const r = await fetch(
-    `https://api.polyhaven.com/files/${encodeURIComponent(item.fonte.polyhaven)}`,
-    {
-      signal: AbortSignal.timeout(60000),
-    },
-  )
-  if (!r.ok) throw new Error(`Poly Haven ${item.fonte.polyhaven}: HTTP ${r.status}`)
-  const arquivos = await r.json()
+  const arquivos = await arquivosDaPolyHaven(item.fonte.polyhaven)
   const gltf = arquivos.gltf?.[res]?.gltf
   if (!gltf) throw new Error(`Poly Haven ${item.fonte.polyhaven}: sem glTF em ${res}`)
   const principal = await baixarFixado(
@@ -220,6 +229,85 @@ async function fonteDoItem(raiz, item, trava) {
   return principal
 }
 
+async function arquivosDaPolyHaven(id) {
+  const r = await fetch(`https://api.polyhaven.com/files/${encodeURIComponent(id)}`, {
+    signal: AbortSignal.timeout(60000),
+  })
+  if (!r.ok) throw new Error(`Poly Haven ${id}: HTTP ${r.status}`)
+  return r.json()
+}
+
+/**
+ * Textura PBR da Poly Haven em três WebP: cor, normal (convenção OpenGL, a do three) e ARM
+ * (oclusão, rugosidade e metal nos canais R, G e B, que o three lê do mesmo arquivo).
+ */
+async function importarTextura(raiz, item, trava, sharp) {
+  const res = item.fonte.resolucao ?? '1k'
+  const max = item.texturaMax ?? 1024
+  const arquivos = await arquivosDaPolyHaven(item.fonte.polyhaven)
+  const escritos = []
+  for (const [canal, chave] of Object.entries({ cor: 'Diffuse', normal: 'nor_gl', arm: 'arm' })) {
+    const entrada = arquivos[chave]?.[res]?.png ?? arquivos[chave]?.[res]?.jpg
+    if (!entrada) throw new Error(`${item.id}: Poly Haven sem ${chave} em ${res}`)
+    const ext = entrada.url.split('.').pop()
+    const fonte = await baixarFixado(
+      trava,
+      `${item.id}/${canal}.${ext}`,
+      entrada.url,
+      dentro(join(raiz, '.local/asset-source'), `${item.id}/${canal}.${ext}`),
+    )
+    const caminho = `${item.saida.replace(/\/$/, '')}/${canal}.webp`
+    const destino = dentro(raiz, caminho)
+    mkdirSync(dirname(destino), { recursive: true })
+    const reduzida = await sharp(fonte)
+      .resize({ width: max, height: max, fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer()
+    const dados = await sharp(reduzida)
+      .webp(
+        canal === 'normal'
+          ? { quality: 60, nearLossless: true, effort: 6 }
+          : { quality: 90, effort: 6 },
+      )
+      .toBuffer()
+    writeFileSync(destino, dados)
+    escritos.push({ caminho, dados })
+  }
+  return escritos
+}
+
+/** Céu HDR da Poly Haven, como veio: o three lê o .hdr pelo RGBELoader e o kit faz o PMREM. */
+async function importarHdri(raiz, item, trava) {
+  const res = item.fonte.resolucao ?? '1k'
+  const arquivos = await arquivosDaPolyHaven(item.fonte.polyhaven)
+  const entrada = arquivos.hdri?.[res]?.hdr
+  if (!entrada) throw new Error(`${item.id}: Poly Haven sem hdri .hdr em ${res}`)
+  const fonte = await baixarFixado(
+    trava,
+    `${item.id}/${res}.hdr`,
+    entrada.url,
+    dentro(join(raiz, '.local/asset-source'), `${item.id}/${res}.hdr`),
+  )
+  const dados = readFileSync(fonte)
+  const destino = dentro(raiz, item.saida)
+  mkdirSync(dirname(destino), { recursive: true })
+  writeFileSync(destino, dados)
+  return [{ caminho: item.saida, dados }]
+}
+
+function registrarEscritos(ledger, item, escritos) {
+  let texto = existsSync(ledger) ? readFileSync(ledger, 'utf8') : '# Origem dos assets\n'
+  for (const e of escritos) {
+    texto = registrarNoLedger(texto, {
+      caminho: e.caminho,
+      licenca: item.licenca,
+      origem: item.origem,
+      sha: sha256(e.dados),
+    })
+  }
+  writeFileSync(ledger, texto)
+}
+
 /** Importa a lista inteira (ou só `apenas`). Devolve um resumo por item. */
 export async function importar(raiz, { apenas } = {}) {
   const lista = JSON.parse(readFileSync(join(raiz, 'assets/importar.json'), 'utf8'))
@@ -228,12 +316,14 @@ export async function importar(raiz, { apenas } = {}) {
   const { NodeIO } = await doJogo(raiz, '@gltf-transform/core')
   const { ALL_EXTENSIONS } = await doJogo(raiz, '@gltf-transform/extensions')
   const fn = await doJogo(raiz, '@gltf-transform/functions')
-  const { MeshoptEncoder, MeshoptSimplifier } = await doJogo(raiz, 'meshoptimizer')
+  const { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } = await doJogo(raiz, 'meshoptimizer')
+  // Fonte que já vem comprimida (um GLB que passou por outro importador) precisa do decoder.
+  await MeshoptDecoder.ready
   const sharpDoJogo = await doJogo(raiz, 'sharp')
   const sharp = sharpDoJogo.default ?? sharpDoJogo
   const io = new NodeIO()
     .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ 'meshopt.encoder': MeshoptEncoder })
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'meshopt.encoder': MeshoptEncoder })
 
   const caminhoTrava = join(raiz, 'assets/source-lock.json')
   const trava = existsSync(caminhoTrava)
@@ -244,6 +334,24 @@ export async function importar(raiz, { apenas } = {}) {
 
   for (const item of lista.itens) {
     if (apenas && !apenas.includes(item.id)) continue
+    if ((item.tipo ?? 'modelo') !== 'modelo') {
+      const escritos =
+        item.tipo === 'hdri'
+          ? await importarHdri(raiz, item, trava)
+          : await importarTextura(raiz, item, trava, sharp)
+      registrarEscritos(ledger, item, escritos)
+      mkdirSync(dirname(caminhoTrava), { recursive: true })
+      writeFileSync(caminhoTrava, `${JSON.stringify({ files: trava }, null, 2)}\n`)
+      resumo.push({
+        id: item.id,
+        saida: item.saida,
+        bytes: escritos.reduce((n, e) => n + e.dados.length, 0),
+        arquivos: escritos.length,
+        triangulos: 0,
+        sha: sha256(escritos[0].dados),
+      })
+      continue
+    }
     let entrada = await fonteDoItem(raiz, item, trava)
     if (!['.glb', '.gltf'].includes(extname(entrada).toLowerCase()))
       entrada = converterNoBlender(entrada)
@@ -329,16 +437,7 @@ export async function importar(raiz, { apenas } = {}) {
       writeFileSync(saida, binario)
       escritos.push({ caminho: item.saida, dados: binario })
     }
-    let textoLedger = existsSync(ledger) ? readFileSync(ledger, 'utf8') : '# Origem dos assets\n'
-    for (const e of escritos) {
-      textoLedger = registrarNoLedger(textoLedger, {
-        caminho: e.caminho,
-        licenca: item.licenca,
-        origem: item.origem,
-        sha: sha256(e.dados),
-      })
-    }
-    writeFileSync(ledger, textoLedger)
+    registrarEscritos(ledger, item, escritos)
     const bytes = escritos.reduce((n, e) => n + e.dados.length, 0)
     const sha = sha256(escritos[0].dados)
     // Grava a cada item: download que cai no meio não perde o que já entrou.
