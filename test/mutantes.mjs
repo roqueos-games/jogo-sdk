@@ -11,7 +11,6 @@ const MUTANTES = [
   ['teto do baixo desligado', (t) => t.replace('if (baixo > teto.baixo * MB)', 'if (false)')],
   ['teto do alto desligado', (t) => t.replace('if (total > teto.alto * MB)', 'if (false)')],
   ['alto/ conta no baixo', (t) => t.replace(".split('/').includes('alto')", '.length < 0')],
-  ['Fab cru aceito', (t) => t.replace("!caminho.endsWith('.pak')", 'false')],
   [
     'Fab em jogo aberto aceito',
     (t) => t.replace("temFab && licencaDoPacote(raiz) !== 'UNLICENSED'", 'false'),

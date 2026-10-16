@@ -41,7 +41,6 @@ describe('lista de importação', () => {
         item({ id: 'b', origem: '' }),
         item({ id: 'c', fonte: {} }),
         item({ id: 'd', fonte: { polyhaven: 'x', arquivo: 'y' } }),
-        item({ id: 'e', licenca: 'Fab Standard' }),
       ],
     })
     assert.match(p.join('\n'), /saida precisa ser um \.glb dentro de public\//)
@@ -50,7 +49,6 @@ describe('lista de importação', () => {
     assert.match(p.join('\n'), /item "b": sem origem/)
     assert.match(p.join('\n'), /item "c": fonte precisa de polyhaven OU arquivo/)
     assert.match(p.join('\n'), /item "d": fonte precisa de polyhaven OU arquivo/)
-    assert.match(p.join('\n'), /item "e": asset do Fab não sai cru/)
   })
 
   test('textura e hdri: a forma da saída e a fonte da Poly Haven', () => {

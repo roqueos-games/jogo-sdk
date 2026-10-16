@@ -72,8 +72,6 @@ export function validarLista(lista) {
     const f = item?.fonte ?? {}
     if (!f.polyhaven === !f.arquivo)
       problemas.push(`${onde}: fonte precisa de polyhaven OU arquivo`)
-    if (/\bfab\b/i.test(item?.licenca ?? ''))
-      problemas.push(`${onde}: asset do Fab não sai cru, vai num .pak cifrado`)
   }
   if (!lista?.itens?.length) problemas.push('assets/importar.json sem itens')
   return problemas

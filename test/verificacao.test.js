@@ -142,7 +142,7 @@ describe('jogo check', () => {
         'textos nos dez idiomas',
         'origem dos assets',
         'peso por perfil (30 MB baixo, 120 MB alto)',
-        'asset do Fab só cifrado e em jogo fechado',
+        'asset do Fab só em jogo fechado',
         'o jogo não fala com banco',
       ],
     )
@@ -257,14 +257,22 @@ describe('jogo check', () => {
     assert.match(r.saida, /public\/ soma 122\.0 MB, teto do perfil alto 120 MB/)
   })
 
-  test('asset do Fab cru em public/ reprova, mesmo em jogo fechado', () => {
+  test('asset do Fab solto em public/ passa em jogo fechado (decisão de 16/10/2026)', () => {
     const r = comDefeito((p) => {
       fechar(p)
       writeFileSync(join(p, 'public/barreira.glb'), 'x')
       appendFileSync(join(p, 'ASSETS.md'), '| `public/barreira.glb` | Fab Standard | fab.com |\n')
     })
+    assert.equal(r.codigo, 0, r.saida)
+  })
+
+  test('asset do Fab solto em jogo aberto reprova', () => {
+    const r = comDefeito((p) => {
+      writeFileSync(join(p, 'public/barreira.glb'), 'x')
+      appendFileSync(join(p, 'ASSETS.md'), '| `public/barreira.glb` | Fab Standard | fab.com |\n')
+    })
     assert.equal(r.codigo, 1, r.saida)
-    assert.match(r.saida, /public\/barreira\.glb é do Fab e está cru em public\//)
+    assert.match(r.saida, /asset do Fab num jogo que não é fechado/)
   })
 
   test('asset do Fab dentro de .pak passa em jogo fechado', () => {

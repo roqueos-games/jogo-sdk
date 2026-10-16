@@ -230,12 +230,11 @@ export function conferirFab(raiz) {
       .slice(1, -1)
       .map((c) => c.trim().replace(/`/g, ''))
     if (!ehLicencaDoFab(licenca)) continue
+    // Decisão do fundador de 16/10/2026, 20h21: o jogo fechado usa o Fab solto em public/,
+    // sabendo que o site serve o arquivo a quem pedir (EULA §4c). O repositório aberto
+    // continua proibido (§5a): é o que esta régua segura.
+    void caminho
     temFab = true
-    if (caminho?.startsWith('public/') && !caminho.endsWith('.pak')) {
-      problemas.push(
-        `${caminho} é do Fab e está cru em public/: o EULA manda impedir a extração, só entra num .pak cifrado`,
-      )
-    }
   }
   if (temFab && licencaDoPacote(raiz) !== 'UNLICENSED') {
     problemas.push('asset do Fab num jogo que não é fechado: o EULA exige repositório privado')
@@ -365,7 +364,7 @@ export function verificarRepo(raiz, { sdk = false } = {}) {
       { secao: 'textos nos dez idiomas', problemas: conferirTextos(raiz) },
       { secao: 'origem dos assets', problemas: conferirAssets(raiz) },
       { secao: 'peso por perfil (30 MB baixo, 120 MB alto)', problemas: conferirPeso(raiz) },
-      { secao: 'asset do Fab só cifrado e em jogo fechado', problemas: conferirFab(raiz) },
+      { secao: 'asset do Fab só em jogo fechado', problemas: conferirFab(raiz) },
       { secao: 'o jogo não fala com banco', problemas: conferirBanco(raiz) },
     )
   }
