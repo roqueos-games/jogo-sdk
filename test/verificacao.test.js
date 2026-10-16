@@ -11,8 +11,10 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  truncateSync,
   writeFileSync,
 } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -139,6 +141,8 @@ describe('jogo check', () => {
         'manifesto',
         'textos nos dez idiomas',
         'origem dos assets',
+        'peso por perfil (30 MB baixo, 120 MB alto)',
+        'asset do Fab só cifrado e em jogo fechado',
         'o jogo não fala com banco',
       ],
     )
@@ -200,6 +204,108 @@ describe('jogo check', () => {
       writeFileSync(join(p, 'src/notas.md'), "import 'firebase/database'\n")
     })
     assert.equal(r.codigo, 0, r.saida)
+  })
+
+  // O teto de 30 MB (celular e TV) e 120 MB (desktop), decisão do fundador de 16/10/2026.
+  // Arquivo esparso: o disco não gasta os megas, mas o statSync vê o tamanho.
+  const grande = (arquivo, mb) => {
+    mkdirSync(join(arquivo, '..'), { recursive: true })
+    writeFileSync(arquivo, '')
+    truncateSync(arquivo, mb * 1024 * 1024)
+  }
+  const fechar = (p) => editarJson(join(p, 'package.json'), (v) => (v.license = 'UNLICENSED'))
+
+  test('perfil baixo acima de 30 MB fora de alto/ reprova e diz os maiores', () => {
+    const r = comDefeito((p) => {
+      fechar(p)
+      grande(join(p, 'public/modelos/cidade.glb'), 31)
+      appendFileSync(
+        join(p, 'ASSETS.md'),
+        '| `public/modelos/cidade.glb` | CC0-1.0 | polyhaven.com |\n',
+      )
+    })
+    assert.equal(r.codigo, 1, r.saida)
+    assert.match(
+      r.saida,
+      /perfil baixo soma 31\.0 MB fora de alto\/, teto 30 MB; os maiores: public\/modelos\/cidade\.glb/,
+    )
+  })
+
+  test('o mesmo arquivo dentro de alto/ passa no baixo', () => {
+    const r = comDefeito((p) => {
+      fechar(p)
+      grande(join(p, 'public/alto/cidade.glb'), 31)
+      appendFileSync(
+        join(p, 'ASSETS.md'),
+        '| `public/alto/cidade.glb` | CC0-1.0 | polyhaven.com |\n',
+      )
+    })
+    assert.equal(r.codigo, 0, r.saida)
+  })
+
+  test('public/ acima de 120 MB reprova mesmo todo em alto/', () => {
+    const r = comDefeito((p) => {
+      fechar(p)
+      grande(join(p, 'public/alto/a.glb'), 61)
+      grande(join(p, 'public/alto/b.glb'), 61)
+      appendFileSync(
+        join(p, 'ASSETS.md'),
+        '| `public/alto/a.glb` | CC0-1.0 | x |\n| `public/alto/b.glb` | CC0-1.0 | x |\n',
+      )
+    })
+    assert.equal(r.codigo, 1, r.saida)
+    assert.match(r.saida, /public\/ soma 122\.0 MB, teto do perfil alto 120 MB/)
+  })
+
+  test('asset do Fab cru em public/ reprova, mesmo em jogo fechado', () => {
+    const r = comDefeito((p) => {
+      fechar(p)
+      writeFileSync(join(p, 'public/barreira.glb'), 'x')
+      appendFileSync(join(p, 'ASSETS.md'), '| `public/barreira.glb` | Fab Standard | fab.com |\n')
+    })
+    assert.equal(r.codigo, 1, r.saida)
+    assert.match(r.saida, /public\/barreira\.glb é do Fab e está cru em public\//)
+  })
+
+  test('asset do Fab dentro de .pak passa em jogo fechado', () => {
+    const r = comDefeito((p) => {
+      fechar(p)
+      writeFileSync(join(p, 'public/rua.pak'), 'x')
+      appendFileSync(
+        join(p, 'ASSETS.md'),
+        '| `public/rua.pak` | LicenseRef-Fab-Standard | fab.com |\n',
+      )
+    })
+    assert.equal(r.codigo, 0, r.saida)
+  })
+
+  test('asset do Fab em jogo aberto reprova, mesmo cifrado', () => {
+    const r = comDefeito((p) => {
+      writeFileSync(join(p, 'public/rua.pak'), 'x')
+      appendFileSync(
+        join(p, 'ASSETS.md'),
+        '| `public/rua.pak` | LicenseRef-Fab-Standard | fab.com |\n',
+      )
+    })
+    assert.equal(r.codigo, 1, r.saida)
+    assert.match(r.saida, /asset do Fab num jogo que não é fechado/)
+  })
+
+  test('SHA-256 do ASSETS.md que não confere reprova; o certo passa', () => {
+    const conteudo = 'modelo importado'
+    const certo = createHash('sha256').update(conteudo).digest('hex')
+    const linha = (sha) => `| \`public/carro.glb\` | CC0-1.0 | polyhaven.com | ${sha} |\n`
+    const errado = comDefeito((p) => {
+      writeFileSync(join(p, 'public/carro.glb'), conteudo + ' trocado à mão')
+      appendFileSync(join(p, 'ASSETS.md'), linha(certo))
+    })
+    assert.equal(errado.codigo, 1, errado.saida)
+    assert.match(errado.saida, /public\/carro\.glb mudou desde o import/)
+    const bom = comDefeito((p) => {
+      writeFileSync(join(p, 'public/carro.glb'), conteudo)
+      appendFileSync(join(p, 'ASSETS.md'), linha(certo))
+    })
+    assert.equal(bom.codigo, 0, bom.saida)
   })
 
   test('comando desconhecido explica o uso', () => {

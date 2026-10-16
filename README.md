@@ -46,8 +46,51 @@ flowchart LR
 - `criarHostFalso()` anota cada chamada em `host.chamadas` e simula mudança vinda de fora com
   `host.disparar('identidade', { uid })`.
 - `jogo check` confere um repo de jogo: o `jogo.json`, os textos nos dez idiomas, a origem de
-  cada asset, a ausência de script que rode sozinho no install e a ausência do Firebase no
-  `src/` (o jogo não fala com banco; quem fala é o host).
+  cada asset (e o SHA-256 dele, quando o ASSETS.md traz), o teto por perfil (30 MB fora de
+  `alto/`, 120 MB no total), o asset do Fab só cifrado e só em jogo fechado, a ausência de script
+  que rode sozinho no install e a ausência do Firebase no `src/` (o jogo não fala com banco;
+  quem fala é o host).
+
+### Modelo 3D de mercado: o kit de modelos (desde 0.4.0)
+
+Os jogos trocam o desenho feito na hora por modelo de mercado (Poly Haven, Kenney, Quaternius,
+Sketchfab, Mixamo, Fab), do mesmo jeito em todos:
+
+1. `assets/importar.json` lista cada modelo com saída, licença, origem e fonte.
+   `jogo assets importar` gera o GLB comprimido, fixa o original em `assets/source-lock.json` e
+   escreve a linha do ASSETS.md com o SHA-256. O jogo instala as ferramentas em devDependencies:
+   `@gltf-transform/core`, `extensions` e `functions` 4.5.1, `meshoptimizer` 1.1.1 e `sharp`
+   0.35.4. FBX, OBJ e `.blend` pedem o Blender.
+2. No jogo, `@roqueos-games/jogo-sdk/modelos` carrega e acende:
+
+```js
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import {
+  perfilDoJogo,
+  prepararRenderizador,
+  acenderAmbiente,
+  criarCarregador,
+} from '@roqueos-games/jogo-sdk/modelos'
+
+const perfil = perfilDoJogo(host)
+prepararRenderizador({ THREE, renderer, perfil })
+acenderAmbiente({ THREE, renderer, scene, RoomEnvironment })
+const modelos = criarCarregador({ GLTFLoader, MeshoptDecoder, base: '/games/farol/', perfil })
+const { cena } = await modelos.modelo({
+  baixo: 'modelos/carro.glb',
+  alto: 'modelos/alto/carro.glb',
+})
+```
+
+3. O que só o desktop carrega mora numa pasta `alto/`: é ela que fica fora dos 30 MB do perfil
+   baixo. O asset do Fab nunca vai cru para `public/`: o EULA manda impedir a extração.
+4. `jogo olho antes` e `jogo olho depois` fotografam o mesmo roteiro em desktop, celular e TV e
+   medem o quadro. O roteiro do jogo mora em `olho/roteiro.mjs`; o jogo instala o `playwright`
+   1.60.0 em devDependencies. O quadro é do navegador sem janela desta máquina, com o
+   renderizador gravado ao lado; iPhone de verdade continua sendo o iPhone.
 
 As capacidades, com o motivo de cada uma, estão em [`src/contrato.js`](src/contrato.js). O
 motivo é parte do contrato: capacidade sem motivo vira atalho para o jogo alcançar o que não
@@ -194,7 +237,8 @@ falharEscrita } })` e `host.disparar('progresso', { falharLeitura: false })`. Se
 - Node 24 (o `.nvmrc` diz), ou 22 no mínimo.
 - Yarn 1.22.
 
-Não há dependência de runtime. As de desenvolvimento são ESLint e Prettier.
+Não há dependência de runtime. As de desenvolvimento são ESLint, Prettier, o three (só para o
+teste do kit de modelos) e as ferramentas do importador, para o teste de ponta a ponta dele.
 
 ## Como rodar
 
@@ -207,7 +251,7 @@ Não há dependência de runtime. As de desenvolvimento são ESLint e Prettier.
 Num repo de jogo, o SDK entra como dependência git pinada por tag:
 
 ```json
-{ "dependencies": { "@roqueos-games/jogo-sdk": "github:roqueos-games/jogo-sdk#v0.3.0" } }
+{ "dependencies": { "@roqueos-games/jogo-sdk": "github:roqueos-games/jogo-sdk#v0.4.0" } }
 ```
 
 ```js
@@ -238,11 +282,15 @@ src/
   idiomas.js          os dez idiomas
   e2e.js              o modo de teste de ponta a ponta
   verificacao.js      o que o jogo check confere
+  modelos.js          o kit de modelos: perfil, renderizador, ambiente, carregador (0.4.0)
+  importador.js       jogo assets importar (0.4.0)
+  olho.js             jogo olho (0.4.0)
   host/               desenvolvimento, falso, o espaço de chaves do armazenamento, e o que
                       os dois dividem: as regras da sala, o motor da sala ao vivo
                       (salaAoVivo.js), o progresso e o pedido da ia
 bin/jogo.mjs          o CLI
-test/                 node:test, com um jogo de exemplo em test/fixtures/jogo-ok
+test/                 node:test, com um jogo de exemplo em test/fixtures/jogo-ok; test/mutantes.mjs
+                      quebra cada régua do jogo check e confere que a suíte reprova
 docs/contrato.svg     o diagrama acima
 ```
 
@@ -279,7 +327,14 @@ in the browser, and in tests.
 - `criarHostFalso()` records every call for tests.
 - `jogo check` validates a game repo: `jogo.json`, texts in the ten languages, asset
   provenance, no install-time scripts, and no Firebase import under `src/` (the game never
-  talks to a database; the host does).
+  talks to a database; the host does). Since 0.4.0 it also enforces the download ceiling per
+  profile (30 MB outside `alto/`, 120 MB total), keeps Fab assets encrypted and out of open
+  repos, and checks the optional SHA-256 column of `ASSETS.md`.
+- Since 0.4.0, the model kit: `@roqueos-games/jogo-sdk/modelos` (profile from the host,
+  renderer setup with ACES and sRGB, image-based lighting, a cached GLTF loader with meshopt),
+  `jogo assets importar` (third-party model to compressed GLB, original pinned by SHA-256) and
+  `jogo olho` (screenshots and frame timing on desktop, phone and TV, through the game's own
+  script).
 - Optional capabilities: `tela` (fullscreen), `teclado` (keyboard focus), `ia` (AI completion:
   `disponivel()` says up front whether a model is available, `completar({ sistema, mensagens:
 [{ papel, texto }] })` returns text or `null`) and, since 0.2.0, `sala`: a two-player online
