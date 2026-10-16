@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const ALVO = fileURLToPath(new URL('../src/verificacao.js', import.meta.url))
+const MODELOS = fileURLToPath(new URL('../src/modelos.js', import.meta.url))
 const MUTANTES = [
   ['teto do baixo desligado', (t) => t.replace('if (baixo > teto.baixo * MB)', 'if (false)')],
   ['teto do alto desligado', (t) => t.replace('if (total > teto.alto * MB)', 'if (false)')],
@@ -22,29 +23,50 @@ const MUTANTES = [
     (t) => t.replace('problemas: conferirPeso(raiz)', 'problemas: []'),
   ],
   ['seção do Fab fora do check', (t) => t.replace('problemas: conferirFab(raiz)', 'problemas: []')],
+  [
+    'cenário: repetição ignorada',
+    (t) => t.replace('c.repeat.set(rx, ry)', 'c.repeat.set(1, 1)'),
+    MODELOS,
+  ],
+  [
+    'cenário: modelo fora do chão',
+    (t) => t.replace('-caixa.min.y, -centro.z', '0, -centro.z'),
+    MODELOS,
+  ],
+  [
+    'cenário: céu ignora o perfil',
+    (t) => t.replace('caminhoDoPerfil(hdr, perfil)', 'caminhoDoPerfil(hdr, PERFIS.alto)'),
+    MODELOS,
+  ],
 ]
 
-const original = readFileSync(ALVO, 'utf8')
+const originais = new Map([ALVO, MODELOS].map((a) => [a, readFileSync(a, 'utf8')]))
+const SUITE = new Map([
+  [ALVO, 'test/verificacao.test.js'],
+  [MODELOS, 'test/cenario.test.js'],
+])
 let vivos = 0
 try {
-  for (const [nome, mutar] of MUTANTES) {
+  for (const [nome, mutar, alvo = ALVO] of MUTANTES) {
+    const original = originais.get(alvo)
     const mutado = mutar(original)
     if (mutado === original) {
       console.log(`NÃO APLICOU  ${nome}`)
       vivos++
       continue
     }
-    writeFileSync(ALVO, mutado)
-    const r = spawnSync(process.execPath, ['--test', 'test/verificacao.test.js'], {
+    writeFileSync(alvo, mutado)
+    const r = spawnSync(process.execPath, ['--test', SUITE.get(alvo)], {
       cwd: fileURLToPath(new URL('..', import.meta.url)),
       encoding: 'utf8',
     })
+    writeFileSync(alvo, original)
     const morto = r.status !== 0
     if (!morto) vivos++
     console.log(`${morto ? 'morto       ' : 'SOBREVIVEU  '} ${nome}`)
   }
 } finally {
-  writeFileSync(ALVO, original)
+  for (const [a, o] of originais) writeFileSync(a, o)
 }
 console.log(
   vivos ? `\n${vivos} mutante(s) vivo(s).` : `\nok, os ${MUTANTES.length} mutantes morreram.`,

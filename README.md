@@ -86,6 +86,18 @@ const { cena } = await modelos.modelo({
 })
 ```
 
+Para o cenário inteiro de uma vez, `criarCenario` junta modelos, texturas PBR (`cor`, `normal`
+e `arm` em `texturas/<id>/`, como o importador escreve) e o céu HDR. O que não chegar fica em
+`faltaram` e o jogo segue com o desenho de antes:
+
+```js
+const cenario = criarCenario({ THREE, GLTFLoader, MeshoptDecoder, RGBELoader, base, perfil })
+await cenario.carregar({ modelos: { banco: 'modelos/banco.gltf' }, texturas: ['piso'], ceu })
+cenario.vestir(chao.material, 'piso', 6, 4) // repetição própria, sem vazar para outro material
+cena.add(cenario.modelo('banco', 0.75)) // 75 cm de altura, pé no chão, centrado
+cenario.aplicarCeu(renderer, cena, { fundo: true })
+```
+
 3. O que só o desktop carrega mora numa pasta `alto/`: é ela que fica fora dos 30 MB do perfil
    baixo. O asset do Fab nunca vai cru para `public/`: o EULA manda impedir a extração.
 4. `jogo olho antes` e `jogo olho depois` fotografam o mesmo roteiro em desktop, celular e TV e

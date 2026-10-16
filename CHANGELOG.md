@@ -10,7 +10,9 @@ continua na versão 1: nada aqui muda a forma de uma capacidade, e o host do Roq
   escolhe entre o perfil baixo e o alto; `?perfil=` força), `prepararRenderizador` (sRGB, tom
   ACES, sombra e pixelRatio pelo perfil), `acenderAmbiente` (HDR ou `RoomEnvironment` via PMREM),
   `criarCarregador` (GLTF com meshopt, um download por arquivo e um clone por pedido, o
-  `SkeletonUtils.clone` para modelo com esqueleto, progresso por arquivo) e `liberar`. O SDK não
+  `SkeletonUtils.clone` para modelo com esqueleto, progresso por arquivo) e `liberar`. `criarCenario`
+  (Goal 83) junta modelos, texturas PBR e céu num pedido só, mede e assenta o modelo no chão e
+  veste material com repetição própria; o que faltar fica listado e não derruba a cena. O SDK não
   importa o three: o jogo entrega os módulos da versão dele.
 - `jogo assets importar`: lê `assets/importar.json` e transforma o modelo (Poly Haven pela API,
   ou arquivo baixado à mão do Sketchfab, do Mixamo ou do Fab; FBX, OBJ e `.blend` passam pelo
