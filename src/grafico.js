@@ -80,12 +80,14 @@ export function escalaDoDesfoque(cfg) {
 }
 
 /**
- * A qualidade de quem nunca escolheu: Ultra no computador (o pedido do fundador), Médio na
- * tela de toque, Baixo no aparelho que o host marca como fraco.
+ * A qualidade de quem nunca escolheu: Ultra no computador (o pedido do fundador) e Baixo na tela
+ * de toque e no aparelho que o host marca como fraco. O celular abre no mínimo para rodar no
+ * maior número de aparelhos (fundador, 17/10/2026); quem tem aparelho bom sobe no painel, e a
+ * escolha fica guardada.
  */
 export function qualidadePadrao({ modoLeve = false, toque = false } = {}) {
-  if (modoLeve) return 'baixo'
-  return toque ? 'medio' : 'ultra'
+  if (modoLeve || toque) return 'baixo'
+  return 'ultra'
 }
 
 /** Configuração inicial: a qualidade do aparelho, sem efeito mexido e o FOV do jogo. */

@@ -10,6 +10,11 @@ const MODELOS = fileURLToPath(new URL('../src/modelos.js', import.meta.url))
 const GRAFICO = fileURLToPath(new URL('../src/grafico.js', import.meta.url))
 const MUTANTES = [
   [
+    'celular volta para o médio',
+    (t) => t.replace('if (modoLeve || toque) return', 'if (modoLeve) return'),
+    GRAFICO,
+  ],
+  [
     'desfoque: a força do painel ignorada',
     (t) => t.replace('const k = escalaDoDesfoque(novo)', 'const k = 1'),
     GRAFICO,

@@ -32,9 +32,10 @@ const memoria = () => {
 }
 
 describe('qualidades', () => {
-  test('Ultra no computador, Médio no toque, Baixo no aparelho fraco', () => {
+  test('Ultra no computador, Baixo no toque e no aparelho fraco', () => {
     assert.equal(qualidadePadrao({}), 'ultra')
-    assert.equal(qualidadePadrao({ toque: true }), 'medio')
+    assert.equal(qualidadePadrao({ toque: true }), 'baixo')
+    assert.equal(qualidadePadrao({ toque: true, modoLeve: false }), 'baixo')
     assert.equal(qualidadePadrao({ modoLeve: true, toque: false }), 'baixo')
   })
 
