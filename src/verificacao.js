@@ -4,6 +4,7 @@
 // família. Ficam aqui, e não no CI de cada jogo, porque vinte cópias de um
 // check divergem em três meses; uma chamada não.
 
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { IDIOMAS, IDIOMA_CANONICO } from './idiomas.js'
@@ -31,6 +32,10 @@ export const LICENCAS_DE_ASSET = Object.freeze([
   'MIT',
   'BSD-3-Clause',
   'autoral',
+  // as duas restritas: só passam dentro de .pak e em jogo fechado (conferirFab)
+  'LicenseRef-Fab-Standard',
+  'LicenseRef-Sonniss-GDC',
+  'LicenseRef-Adobe-Mixamo',
 ])
 
 const lerJson = (arquivo) => JSON.parse(readFileSync(arquivo, 'utf8'))
@@ -154,6 +159,103 @@ export function conferirAssets(raiz) {
       problemas.push(`${a} com licença "${linha[1]}", fora de ${LICENCAS_DE_ASSET.join(', ')}`)
     }
     if (!linha[2]) problemas.push(`${a} sem origem`)
+    // Quarta coluna opcional: o SHA-256 que o `jogo assets importar` escreve. Quando está
+    // lá, o arquivo tem de ser aquele: modelo trocado à mão sem passar pelo importador
+    // é exatamente o que perde a origem.
+    if (/^[0-9a-f]{64}$/i.test(linha[3] ?? '')) {
+      const atual = createHash('sha256')
+        .update(readFileSync(join(raiz, a)))
+        .digest('hex')
+      if (atual !== linha[3].toLowerCase()) {
+        problemas.push(
+          `${a} mudou desde o import: SHA-256 ${atual.slice(0, 12)}…, o ASSETS.md diz ${linha[3].slice(0, 12)}…`,
+        )
+      }
+    }
+  }
+  return problemas
+}
+
+/**
+ * O teto do que um jogo pode mandar baixar, por perfil (decisão do fundador,
+ * 16/10/2026): 30 MB no perfil baixo (celular e TV) e 120 MB no alto
+ * (desktop). O perfil baixo nunca pede nada de uma pasta `alto/`: o que só o
+ * desktop carrega mora numa pasta `alto/` dentro de `public/`. A régua soma o disco, não a
+ * rede, então é teto do que PODE ser baixado; o quadro real o `jogo olho` mede.
+ */
+export const TETO_MB = Object.freeze({ baixo: 30, alto: 120 })
+
+const MB = 1024 * 1024
+const ehDoAlto = (caminho) => caminho.split('/').includes('alto')
+
+/** Licença do Fab na coluna do ASSETS.md: "Fab Standard", "LicenseRef-Fab-Standard"… */
+export const ehLicencaDoFab = (licenca) => /\bfab\b/i.test(String(licenca ?? ''))
+/**
+ * Licença que não deixa o arquivo sair cru: o Fab (EULA §4c, impedir a extração) e o Sonniss
+ * GDC (proíbe redistribuir as gravações como efeito sonoro). Os dois só entram num `.pak`
+ * cifrado (src/pacote.js) e só em jogo fechado. Sonniss entrou na regra em 16/10/2026, quando
+ * os sons HD do NAS do Roque passaram a ir para todos os jogos. O Mixamo fica de fora de propósito:
+ * jogo fechado pode levar o personagem cru (teste 'jogo fechado aceita asset com licença de
+ * terceiro'); o jogo que quiser mais cuidado põe no .pak por conta própria.
+ */
+export const ehLicencaRestrita = (licenca) =>
+  ehLicencaDoFab(licenca) || /sonniss/i.test(String(licenca ?? ''))
+
+export function conferirPeso(raiz, teto = TETO_MB) {
+  const arquivos = arquivosDe(join(raiz, 'public')).map((p) => ({
+    caminho: relative(raiz, p).split(sep).join('/'),
+    bytes: statSync(p).size,
+  }))
+  const total = arquivos.reduce((n, a) => n + a.bytes, 0)
+  const baixo = arquivos.filter((a) => !ehDoAlto(a.caminho)).reduce((n, a) => n + a.bytes, 0)
+  const mb = (b) => (b / MB).toFixed(1)
+  const problemas = []
+  if (baixo > teto.baixo * MB) {
+    const maiores = arquivos
+      .filter((a) => !ehDoAlto(a.caminho))
+      .sort((a, b) => b.bytes - a.bytes)
+      .slice(0, 3)
+      .map((a) => `${a.caminho} (${mb(a.bytes)} MB)`)
+    problemas.push(
+      `perfil baixo soma ${mb(baixo)} MB fora de alto/, teto ${teto.baixo} MB; os maiores: ${maiores.join(', ')}`,
+    )
+  }
+  if (total > teto.alto * MB) {
+    problemas.push(`public/ soma ${mb(total)} MB, teto do perfil alto ${teto.alto} MB`)
+  }
+  return problemas
+}
+
+/**
+ * Asset do Fab nunca vai cru para `public/`. O EULA (§4c) manda impedir o
+ * usuário final de extrair o conteúdo: `.glb` ou textura numa URL previsível
+ * é exatamente a extração. Foi a pendência do Call of Roque medida em
+ * 03/10/2026. O Fab entra só dentro de um pacote `.pak` cifrado.
+ */
+export function conferirFab(raiz) {
+  const ledger = join(raiz, 'ASSETS.md')
+  if (!existsSync(ledger)) return []
+  const problemas = []
+  let temFab = false
+  for (const linha of readFileSync(ledger, 'utf8').split('\n')) {
+    if (!/^\|/.test(linha) || /^\|\s*-/.test(linha)) continue
+    const [caminho, licenca] = linha
+      .split('|')
+      .slice(1, -1)
+      .map((c) => c.trim().replace(/`/g, ''))
+    if (!ehLicencaRestrita(licenca)) continue
+    temFab = true
+    const quem = ehLicencaDoFab(licenca) ? 'do Fab' : 'do Sonniss'
+    if (caminho?.startsWith('public/') && !caminho.endsWith('.pak')) {
+      problemas.push(
+        `${caminho} é ${quem} e está cru em public/: a licença manda impedir a extração, só entra num .pak cifrado`,
+      )
+    }
+  }
+  if (temFab && licencaDoPacote(raiz) !== 'UNLICENSED') {
+    problemas.push(
+      'asset do Fab ou do Sonniss num jogo que não é fechado: a licença exige repositório privado',
+    )
   }
   return problemas
 }
@@ -279,6 +381,11 @@ export function verificarRepo(raiz, { sdk = false } = {}) {
       { secao: 'manifesto', problemas: conferirManifesto(raiz) },
       { secao: 'textos nos dez idiomas', problemas: conferirTextos(raiz) },
       { secao: 'origem dos assets', problemas: conferirAssets(raiz) },
+      { secao: 'peso por perfil (30 MB baixo, 120 MB alto)', problemas: conferirPeso(raiz) },
+      {
+        secao: 'asset do Fab e do Sonniss só cifrado e em jogo fechado',
+        problemas: conferirFab(raiz),
+      },
       { secao: 'o jogo não fala com banco', problemas: conferirBanco(raiz) },
     )
   }

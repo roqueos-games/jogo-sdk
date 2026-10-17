@@ -1,6 +1,6 @@
 {
   "name": "@roqueos-games/jogo-sdk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "O contrato entre o RoqueOS e um jogo: mount(el, host), as capacidades do host, um host para rodar o jogo sozinho, um host falso para teste e o jogo check.",
   "license": "MIT",
   "author": "Roque Ribeiro",
@@ -14,7 +14,11 @@
     "./host-de-desenvolvimento": "./src/host/desenvolvimento.js",
     "./host-falso": "./src/host/falso.js",
     "./armazenamento": "./src/host/armazenamento.js",
-    "./sala-ao-vivo": "./src/host/salaAoVivo.js"
+    "./sala-ao-vivo": "./src/host/salaAoVivo.js",
+    "./modelos": "./src/modelos.js",
+    "./grafico": "./src/grafico.js",
+    "./painel": "./src/painel.js",
+    "./pacote": "./src/pacote.js"
   },
   "bin": {
     "jogo": "./bin/jogo.mjs"
@@ -35,12 +39,19 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verificar": "yarn lint && yarn format:check && yarn test && yarn jogo:check",
-    "jogo:check": "node bin/jogo.mjs check --sdk"
+    "jogo:check": "node bin/jogo.mjs check --sdk",
+    "mutantes": "node test/mutantes.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.14.0",
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
     "eslint": "9.14.0",
     "globals": "16.4.0",
-    "prettier": "3.3.3"
+    "meshoptimizer": "1.1.1",
+    "prettier": "3.3.3",
+    "sharp": "0.35.4",
+    "three": "0.171.0"
   }
 }

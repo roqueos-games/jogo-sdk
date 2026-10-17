@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.4.0 (16/10/2026)
+
+O kit para trocar desenho feito na hora por modelo 3D de mercado (Goal 80, pedido do fundador
+de 16/10/2026: todos os jogos na qualidade do Call of Roque e da Agentolandia). O contrato
+continua na versão 1: nada aqui muda a forma de uma capacidade, e o host do RoqueOS não muda.
+
+- `@roqueos-games/jogo-sdk/modelos`: `perfilDoJogo(host)` (o `desempenho.modoLeve()` do host
+  escolhe entre o perfil baixo e o alto; `?perfil=` força), `prepararRenderizador` (sRGB, tom
+  ACES, sombra e pixelRatio pelo perfil), `acenderAmbiente` (HDR ou `RoomEnvironment` via PMREM),
+  `criarCarregador` (GLTF com meshopt, um download por arquivo e um clone por pedido, o
+  `SkeletonUtils.clone` para modelo com esqueleto, progresso por arquivo) e `liberar`. `criarCenario`
+  (Goal 83) junta modelos, texturas PBR e céu num pedido só, mede e assenta o modelo no chão e
+  veste material com repetição própria; o que faltar fica listado e não derruba a cena. O SDK não
+  importa o three: o jogo entrega os módulos da versão dele.
+- `@roqueos-games/jogo-sdk/grafico` (pedido do fundador de 16/10/2026, 21h02, para todos os
+  jogos): qualidades Baixo, Médio, Alto e Ultra (Ultra no computador, Médio no toque, Baixo no
+  aparelho fraco), cada efeito ligável à parte (oclusão de ambiente GTAO, bloom, borrão de
+  movimento da câmera, antisserrilhado, vinheta), FOV, a escolha guardada no `armazenamento` do
+  host, e `criarPosProcesso`, a cadeia do quadro sobre o EffectComposer do three do jogo.
+- `@roqueos-games/jogo-sdk/painel`: o painel de configurações (Gráfico e Som) em DOM puro,
+  folha que sobe do pé da tela no celular e cartão no computador, alvos de 48 px, área segura
+  do iPhone, nos dez idiomas.
+- `jogo assets importar`: lê `assets/importar.json` e transforma o modelo (Poly Haven pela API,
+  ou arquivo baixado à mão do Sketchfab, do Mixamo ou do Fab; FBX, OBJ e `.blend` passam pelo
+  Blender sem janela) em GLB com geometria meshopt e textura WebP. Fixa o SHA-256 do original em
+  `assets/source-lock.json` (original que mudou na origem para o import) e escreve a linha do
+  ASSETS.md com o SHA-256 da saída. As dependências pesadas são do jogo, em devDependencies.
+  Com `texturasFora`, sai `.gltf` + `.bin` + texturas ao lado, cada arquivo com a própria linha:
+  o WKWebView do iPhone não mostra textura embutida no GLB.
+- `jogo olho <rótulo>`: o roteiro do jogo (`olho/roteiro.mjs`) leva até a partida, e o olho tira
+  as fotos e mede o quadro (p50, p99, pior, acima de 100 ms) em desktop no perfil alto, celular e
+  TV no baixo, em pt-BR, gravando o renderizador que o WebGL reportou.
+- `jogo check`, três réguas novas: o teto por perfil (30 MB fora de `alto/`, 120 MB no total;
+  decisão do fundador de 16/10/2026), o asset do Fab só dentro de `.pak` e só em jogo fechado
+  (EULA §4c e §5a), e a quarta coluna opcional do ASSETS.md com o SHA-256, que o arquivo tem de
+  bater. `yarn mutantes` quebra cada régua de propósito e confere que a suíte reprova.
+
 ## 0.3.0 (26/09/2026)
 
 O que a RagnaRoque e o RoqueCraft precisam para sair do RoqueOS. O contrato continua na
