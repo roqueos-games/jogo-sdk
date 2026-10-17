@@ -232,6 +232,13 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
   const alvo = new THREE.WebGLRenderTarget(tamanho.x, tamanho.y, { type: THREE.HalfFloatType })
   alvo.depthTexture = new THREE.DepthTexture(tamanho.x, tamanho.y)
   const composer = new EffectComposer(renderer, alvo)
+  // O segundo alvo é um clone do primeiro, e o clone da DepthTexture divide o `source` com ela: o
+  // three guarda a textura WebGL por `source`, então os dois alvos acabavam com a MESMA
+  // profundidade na GPU, e o borrão lia a profundidade presa ao alvo em que escrevia (tela preta).
+  // Cada alvo ganha a sua.
+  if (composer.renderTarget2) {
+    composer.renderTarget2.depthTexture = new THREE.DepthTexture(tamanho.x, tamanho.y)
+  }
 
   const cena = new RenderPass(scene, camera)
   const ao = new GTAOPass(scene, camera, tamanho.x, tamanho.y)
@@ -246,10 +253,23 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
   const saida = new OutputPass()
   const aa = new ShaderPass(FXAAShader)
   const vinheta = new ShaderPass(SHADER_DA_VINHETA)
-  for (const p of [cena, ao, borrao, brilho, saida, aa, vinheta]) composer.addPass(p)
-
-  // a profundidade da cena: o RenderPass desenha no alvo de leitura do quadro, e o alvo que o
-  // composer recebeu e o clone dele carregam cada um a sua; o borrão lê a do alvo da vez
+  // O borrão vem logo depois da cena, antes do AO. O RenderPass desenha no alvo de leitura do
+  // quadro (não troca), e o borrão escreve no outro: assim ele lê a profundidade que a cena acabou
+  // de desenhar sem ela estar presa ao alvo em que ele escreve. Com o borrão depois do AO (que
+  // troca os alvos) ele escrevia justamente no alvo dono daquela profundidade: laço de
+  // realimentação, GL_INVALID_OPERATION e tela preta no Chrome (16/10/2026).
+  for (const p of [cena, borrao, ao, brilho, saida, aa, vinheta]) composer.addPass(p)
+  let profundidade = alvo.depthTexture
+  const desenharCena = cena.render.bind(cena)
+  cena.render = (r, escrita, leitura, ...resto) => {
+    profundidade = (cena.renderToScreen ? null : leitura?.depthTexture) ?? profundidade
+    return desenharCena(r, escrita, leitura, ...resto)
+  }
+  const desenharBorrao = borrao.render.bind(borrao)
+  borrao.render = (r, escrita, leitura, ...resto) => {
+    borrao.uniforms.tDepth.value = profundidade
+    return desenharBorrao(r, escrita, leitura, ...resto)
+  }
   const anterior = new THREE.Matrix4()
   const atual = new THREE.Matrix4()
   const ultimaPosicao = new THREE.Vector3()
@@ -284,7 +304,6 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
     if (borrao.enabled) {
       borrao.uniforms.inversaAtual.value = atual.clone().invert()
       borrao.uniforms.vistaAnterior.value = cortou ? atual.clone() : anterior.clone()
-      borrao.uniforms.tDepth.value = composer.readBuffer.depthTexture ?? alvo.depthTexture
       borrao.uniforms.ligado.value = cortou ? 0 : 1
     }
     composer.render(dt)

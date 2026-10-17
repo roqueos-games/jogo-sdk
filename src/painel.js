@@ -250,6 +250,12 @@ export const CSS_DO_PAINEL = `
 .jogo-painel__faixa input{grid-column:1/-1;width:100%;height:32px;accent-color:var(--jogo-destaque,#e7b04a)}
 .jogo-painel__valor{font-variant-numeric:tabular-nums;color:rgba(244,241,234,.7)}
 [dir="rtl"] .jogo-painel__chave[aria-checked="true"]::after{transform:translateX(-22px)}
+@media (orientation:landscape) and (max-height:500px){
+  .jogo-painel__folha{width:min(760px,94vw);max-height:94vh;padding:12px 14px}
+  .jogo-painel__topo{margin-bottom:8px}.jogo-painel__abas{margin-bottom:10px}.jogo-painel__secao{margin-bottom:10px}
+  .jogo-painel__secao--efeitos{display:grid;grid-template-columns:1fr 1fr;column-gap:18px}
+  .jogo-painel__secao--efeitos .jogo-painel__rotulo{grid-column:1/-1}
+  .jogo-painel__qualidade,.jogo-painel__linha{min-height:44px}}
 `
 
 function injetarCss(doc) {
@@ -353,7 +359,7 @@ export function abrirPainel({
     q.append(grade)
     folha.append(q)
 
-    const e = el('section', 'jogo-painel__secao')
+    const e = el('section', 'jogo-painel__secao jogo-painel__secao--efeitos')
     e.append(el('p', 'jogo-painel__rotulo', t.efeitos))
     for (const nome of EFEITOS) {
       const linha = el('label', 'jogo-painel__linha')

@@ -105,12 +105,16 @@ describe('cadeia de pós-processamento', () => {
       this.material = { uniforms: { resolution: { value: new THREE.Vector2() } } }
     }
     setSize() {}
+    render() {}
   }
   class Composer {
     constructor(r, alvo) {
       this.passes = []
       this.readBuffer = alvo
       this.quadros = 0
+      // como o do three: o segundo alvo é clone do primeiro, e o clone divide a profundidade
+      this.renderTarget1 = alvo
+      this.renderTarget2 = { depthTexture: alvo.depthTexture, texture: {} }
     }
     addPass(p) {
       this.passes.push(p)
@@ -136,6 +140,26 @@ describe('cadeia de pós-processamento', () => {
       }
     },
     FXAAShader: { uniforms: {} },
+  }
+  // Um composer que roda os passes como o do three: o RenderPass não troca os alvos, os outros
+  // trocam; cada alvo tem a sua profundidade.
+  class ComposerDeVerdade extends Composer {
+    constructor(r, alvo) {
+      super(r, alvo)
+      this.leitura = alvo
+      this.escrita = this.renderTarget2
+      this.laco = []
+    }
+    render() {
+      this.quadros++
+      for (const p of this.passes) {
+        if (!p.enabled) continue
+        p.render(null, this.escrita, this.leitura)
+        const presa = this.escrita.depthTexture
+        if (p.uniforms?.tDepth && p.uniforms.tDepth.value === presa) this.laco.push(this.quadros)
+        if (p !== this.passes[0]) [this.leitura, this.escrita] = [this.escrita, this.leitura]
+      }
+    }
   }
   const renderer = {
     getSize: (v) => v.set(800, 600),
@@ -181,6 +205,26 @@ describe('cadeia de pós-processamento', () => {
     p.render(0.016)
     assert.equal(p.passes.borrao.uniforms.ligado.value, 0)
     assert.equal(p.composer.quadros, 3)
+  })
+
+  test('lê a profundidade que a cena desenhou, e nunca a do alvo em que escreve', () => {
+    const camera = new THREE.PerspectiveCamera()
+    const p = criarPosProcesso({
+      THREE,
+      renderer,
+      scene: new THREE.Scene(),
+      camera,
+      modulos: { ...modulos, EffectComposer: ComposerDeVerdade },
+      cfg: { qualidade: 'ultra', efeitos: {} },
+    })
+    for (let i = 0; i < 4; i++) {
+      const cenaDesenhaEm = p.composer.leitura.depthTexture
+      camera.position.x += 0.1
+      p.render(0.016)
+      assert.equal(p.passes.borrao.uniforms.tDepth.value, cenaDesenhaEm)
+    }
+    assert.notEqual(p.composer.renderTarget2.depthTexture, p.composer.renderTarget1.depthTexture)
+    assert.deepEqual(p.composer.laco, [])
   })
 })
 
