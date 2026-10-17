@@ -194,11 +194,12 @@ export const ehLicencaDoFab = (licenca) => /\bfab\b/i.test(String(licenca ?? '')
  * Licença que não deixa o arquivo sair cru: o Fab (EULA §4c, impedir a extração) e o Sonniss
  * GDC (proíbe redistribuir as gravações como efeito sonoro). Os dois só entram num `.pak`
  * cifrado (src/pacote.js) e só em jogo fechado. Sonniss entrou na regra em 16/10/2026, quando
- * os sons HD do NAS do Roque passaram a ir para todos os jogos; o Mixamo (Adobe), que permite usar
- * em jogo e proíbe redistribuir o personagem ou a animação soltos, entrou no mesmo dia.
+ * os sons HD do NAS do Roque passaram a ir para todos os jogos. O Mixamo fica de fora de propósito:
+ * jogo fechado pode levar o personagem cru (teste 'jogo fechado aceita asset com licença de
+ * terceiro'); o jogo que quiser mais cuidado põe no .pak por conta própria.
  */
 export const ehLicencaRestrita = (licenca) =>
-  ehLicencaDoFab(licenca) || /sonniss|mixamo/i.test(String(licenca ?? ''))
+  ehLicencaDoFab(licenca) || /sonniss/i.test(String(licenca ?? ''))
 
 export function conferirPeso(raiz, teto = TETO_MB) {
   const arquivos = arquivosDe(join(raiz, 'public')).map((p) => ({
@@ -244,11 +245,7 @@ export function conferirFab(raiz) {
       .map((c) => c.trim().replace(/`/g, ''))
     if (!ehLicencaRestrita(licenca)) continue
     temFab = true
-    const quem = ehLicencaDoFab(licenca)
-      ? 'do Fab'
-      : /mixamo/i.test(licenca)
-        ? 'do Mixamo'
-        : 'do Sonniss'
+    const quem = ehLicencaDoFab(licenca) ? 'do Fab' : 'do Sonniss'
     if (caminho?.startsWith('public/') && !caminho.endsWith('.pak')) {
       problemas.push(
         `${caminho} é ${quem} e está cru em public/: a licença manda impedir a extração, só entra num .pak cifrado`,

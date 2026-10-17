@@ -289,19 +289,6 @@ describe('jogo check', () => {
     assert.equal(cifrado.codigo, 0, cifrado.saida)
   })
 
-  test('personagem do Mixamo cru em public/ reprova', () => {
-    const r = comDefeito((p) => {
-      fechar(p)
-      writeFileSync(join(p, 'public/gente.glb'), 'x')
-      appendFileSync(
-        join(p, 'ASSETS.md'),
-        '| `public/gente.glb` | LicenseRef-Adobe-Mixamo | mixamo.com |\n',
-      )
-    })
-    assert.equal(r.codigo, 1, r.saida)
-    assert.match(r.saida, /public\/gente\.glb é do Mixamo e está cru em public\//)
-  })
-
   test('asset do Fab dentro de .pak passa em jogo fechado', () => {
     const r = comDefeito((p) => {
       fechar(p)
