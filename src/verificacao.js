@@ -186,6 +186,14 @@ const ehDoAlto = (caminho) => caminho.split('/').includes('alto')
 
 /** Licença do Fab na coluna do ASSETS.md: "Fab Standard", "LicenseRef-Fab-Standard"… */
 export const ehLicencaDoFab = (licenca) => /\bfab\b/i.test(String(licenca ?? ''))
+/**
+ * Licença que não deixa o arquivo sair cru: o Fab (EULA §4c, impedir a extração) e o Sonniss
+ * GDC (proíbe redistribuir as gravações como efeito sonoro). Os dois só entram num `.pak`
+ * cifrado (src/pacote.js) e só em jogo fechado. Sonniss entrou na regra em 16/10/2026, quando
+ * os sons HD do NAS do Roque passaram a ir para todos os jogos.
+ */
+export const ehLicencaRestrita = (licenca) =>
+  ehLicencaDoFab(licenca) || /sonniss/i.test(String(licenca ?? ''))
 
 export function conferirPeso(raiz, teto = TETO_MB) {
   const arquivos = arquivosDe(join(raiz, 'public')).map((p) => ({
@@ -229,16 +237,19 @@ export function conferirFab(raiz) {
       .split('|')
       .slice(1, -1)
       .map((c) => c.trim().replace(/`/g, ''))
-    if (!ehLicencaDoFab(licenca)) continue
+    if (!ehLicencaRestrita(licenca)) continue
     temFab = true
+    const quem = ehLicencaDoFab(licenca) ? 'do Fab' : 'do Sonniss'
     if (caminho?.startsWith('public/') && !caminho.endsWith('.pak')) {
       problemas.push(
-        `${caminho} é do Fab e está cru em public/: o EULA manda impedir a extração, só entra num .pak cifrado`,
+        `${caminho} é ${quem} e está cru em public/: a licença manda impedir a extração, só entra num .pak cifrado`,
       )
     }
   }
   if (temFab && licencaDoPacote(raiz) !== 'UNLICENSED') {
-    problemas.push('asset do Fab num jogo que não é fechado: o EULA exige repositório privado')
+    problemas.push(
+      'asset do Fab ou do Sonniss num jogo que não é fechado: a licença exige repositório privado',
+    )
   }
   return problemas
 }
@@ -365,7 +376,10 @@ export function verificarRepo(raiz, { sdk = false } = {}) {
       { secao: 'textos nos dez idiomas', problemas: conferirTextos(raiz) },
       { secao: 'origem dos assets', problemas: conferirAssets(raiz) },
       { secao: 'peso por perfil (30 MB baixo, 120 MB alto)', problemas: conferirPeso(raiz) },
-      { secao: 'asset do Fab só cifrado e em jogo fechado', problemas: conferirFab(raiz) },
+      {
+        secao: 'asset do Fab e do Sonniss só cifrado e em jogo fechado',
+        problemas: conferirFab(raiz),
+      },
       { secao: 'o jogo não fala com banco', problemas: conferirBanco(raiz) },
     )
   }

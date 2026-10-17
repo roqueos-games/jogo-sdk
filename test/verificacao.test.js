@@ -142,7 +142,7 @@ describe('jogo check', () => {
         'textos nos dez idiomas',
         'origem dos assets',
         'peso por perfil (30 MB baixo, 120 MB alto)',
-        'asset do Fab só cifrado e em jogo fechado',
+        'asset do Fab e do Sonniss só cifrado e em jogo fechado',
         'o jogo não fala com banco',
       ],
     )
@@ -267,6 +267,28 @@ describe('jogo check', () => {
     assert.match(r.saida, /public\/barreira\.glb é do Fab e está cru em public\//)
   })
 
+  test('gravação do Sonniss crua em public/ reprova; dentro de .pak passa em jogo fechado', () => {
+    const cru = comDefeito((p) => {
+      fechar(p)
+      writeFileSync(join(p, 'public/bar.mp3'), 'x')
+      appendFileSync(
+        join(p, 'ASSETS.md'),
+        '| `public/bar.mp3` | LicenseRef-Sonniss-GDC | sonniss.com |\n',
+      )
+    })
+    assert.equal(cru.codigo, 1, cru.saida)
+    assert.match(cru.saida, /public\/bar\.mp3 é do Sonniss e está cru em public\//)
+    const cifrado = comDefeito((p) => {
+      fechar(p)
+      writeFileSync(join(p, 'public/sons.pak'), 'x')
+      appendFileSync(
+        join(p, 'ASSETS.md'),
+        '| `public/sons.pak` | LicenseRef-Sonniss-GDC | sonniss.com |\n',
+      )
+    })
+    assert.equal(cifrado.codigo, 0, cifrado.saida)
+  })
+
   test('asset do Fab dentro de .pak passa em jogo fechado', () => {
     const r = comDefeito((p) => {
       fechar(p)
@@ -288,7 +310,7 @@ describe('jogo check', () => {
       )
     })
     assert.equal(r.codigo, 1, r.saida)
-    assert.match(r.saida, /asset do Fab num jogo que não é fechado/)
+    assert.match(r.saida, /asset do Fab ou do Sonniss num jogo que não é fechado/)
   })
 
   test('SHA-256 do ASSETS.md que não confere reprova; o certo passa', () => {

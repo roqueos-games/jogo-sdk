@@ -47,7 +47,7 @@ flowchart LR
   `host.disparar('identidade', { uid })`.
 - `jogo check` confere um repo de jogo: o `jogo.json`, os textos nos dez idiomas, a origem de
   cada asset (e o SHA-256 dele, quando o ASSETS.md traz), o teto por perfil (30 MB fora de
-  `alto/`, 120 MB no total), o asset do Fab só cifrado e só em jogo fechado, a ausência de script
+  `alto/`, 120 MB no total), o asset do Fab e do Sonniss só cifrado (`.pak`, ver `pacote`) e só em jogo fechado, a ausência de script
   que rode sozinho no install e a ausência do Firebase no `src/` (o jogo não fala com banco;
   quem fala é o host).
 

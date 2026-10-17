@@ -17,7 +17,8 @@
     "./sala-ao-vivo": "./src/host/salaAoVivo.js",
     "./modelos": "./src/modelos.js",
     "./grafico": "./src/grafico.js",
-    "./painel": "./src/painel.js"
+    "./painel": "./src/painel.js",
+    "./pacote": "./src/pacote.js"
   },
   "bin": {
     "jogo": "./bin/jogo.mjs"
