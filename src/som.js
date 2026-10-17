@@ -263,6 +263,75 @@ export function criarAudio(
     },
     /** Os laços tocando agora (para o teste). */
     lacosTocando: () => [...lacos].filter(([, l]) => l.vivo).map(([n]) => n),
+    /**
+     * Uma voz contínua que o jogo dirige a cada quadro: o motor do carro (tom pela rotação), o
+     * pneu cantando (volume pela derrapagem). A gravação toca em laço e `definir({ taxa, ganho })`
+     * desliza para os valores novos (sem estalo). Liga sozinha quando o pacote e o contexto
+     * chegarem; se o host trocar de contexto, religa no novo. `parar()` apaga com fade e solta os
+     * nós. `ambiente: true` manda pelo volume de ambiente do painel em vez do de efeitos.
+     */
+    voz(nome, { ambiente = false } = {}) {
+      let viva = null
+      let parada = false
+      const deslizar = (param, valor, t) => {
+        if (!param) return
+        if (param.setTargetAtTime) param.setTargetAtTime(valor, t, 0.05)
+        else param.value = valor
+      }
+      const calar = (v, fade) => {
+        try {
+          const t = v.c.currentTime
+          if (v.g.gain.setTargetAtTime) v.g.gain.setTargetAtTime(0, t, Math.max(0.01, fade / 3))
+          else v.g.gain.value = 0
+          v.fonte.onended = () => soltar(v.fonte, v.g)
+          v.fonte.stop(t + fade)
+        } catch {
+          soltar(v.fonte, v.g)
+        }
+      }
+      const garantir = () => {
+        if (parada) return null
+        const c = contexto()
+        const buffer = amostras?.get(nome)
+        if (!c || !buffer) return null
+        if (viva && viva.c === c) return viva
+        if (viva) calar(viva, 0.05)
+        const fonte = c.createBufferSource()
+        fonte.buffer = buffer
+        fonte.loop = true
+        // o laço pula o atraso do codificador nas pontas, como os laços de ambiente
+        fonte.loopStart = 0.03
+        fonte.loopEnd = Math.max(0.06, (buffer.duration ?? 1) - 0.03)
+        const g = c.createGain()
+        g.gain.value = 0
+        fonte.connect(g)
+        g.connect(ambiente ? ambientes : efeitos)
+        fonte.start()
+        viva = { fonte, g, c }
+        return viva
+      }
+      return {
+        /** Desliza o tom (`taxa`, 1 = gravado) e o volume. Devolve se a voz está tocando. */
+        definir({ taxa, ganho } = {}) {
+          const v = garantir()
+          if (!v) return false
+          const t = v.c.currentTime
+          if (taxa != null) deslizar(v.fonte.playbackRate, Math.max(0.05, taxa), t)
+          if (ganho != null) deslizar(v.g.gain, Math.max(0, ganho), t)
+          return true
+        },
+        tocando: () => Boolean(viva) && !parada,
+        parar(fade = 0.3) {
+          parada = true
+          if (viva) calar(viva, fade)
+          viva = null
+        },
+        /** Depois de `parar`, a voz volta a ligar no próximo `definir`. */
+        retomar() {
+          parada = false
+        },
+      }
+    },
     /** O ouvinte é a câmera: `{ pos, frente, cima }`, a cada quadro. */
     ouvir(o) {
       const c = dono

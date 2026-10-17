@@ -169,6 +169,10 @@ carga.aoMudar(({ progresso, etapa }) => desenharEntrada(progresso, etapa))
 audio.tocar(audio.variacao('peca', 6), { pos: { x, y, z }, taxa: audio.tom() }) || audio.blip(360)
 audio.laco('fogo.mp3', true, { lugares: [{ x: 0, y: 8, z: -40 }] }) // ambiente em laço, no espaço
 audio.ouvir({ pos, frente, cima }) // a câmera, a cada quadro
+
+const motor = audio.voz('motor.wav') // voz contínua que o jogo dirige a cada quadro
+motor.definir({ taxa: 0.7 + rotacao * 0.9, ganho: 0.8 }) // desliza, sem estalo
+motor.parar() // fade e solta os nós
 ```
 
 Cada golpe sai do grafo de áudio quando acaba (o panner HRTF é o nó mais caro). Sem pacote ou sem

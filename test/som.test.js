@@ -48,7 +48,10 @@ function contextoFalso() {
         loop: false,
         playbackRate: { value: 1 },
         start: () => tocou.push({ nome: f.buffer.nome, loop: f.loop }),
-        stop() {},
+        stop() {
+          f.parou = true
+          f.onended?.()
+        },
       }
       c.ultimaFonte = f
       return f
@@ -164,5 +167,43 @@ describe('o som dos jogos', () => {
         },
       }),
     )
+  })
+
+  test('a voz contínua liga quando o pacote chega, desliza o tom e o volume, e solta ao parar', async () => {
+    const c = contextoFalso()
+    const a = criarAudio({ contexto: () => c }, { pacote: await pacote(['motor.wav']) })
+    const motor = a.voz('motor.wav')
+    assert.equal(motor.definir({ taxa: 1.2 }), false)
+    await a.pronto()
+    assert.equal(motor.definir({ taxa: 1.4, ganho: 0.6 }), true)
+    const fonte = c.ultimaFonte
+    assert.equal(fonte.loop, true)
+    assert.equal(fonte.playbackRate.value, 1.4)
+    assert.deepEqual(c.tocou, [{ nome: 'motor.wav', loop: true }])
+    // o segundo definir não cria outra fonte
+    motor.definir({ taxa: 0.9 })
+    assert.equal(c.ultimaFonte, fonte)
+    assert.equal(fonte.playbackRate.value, 0.9)
+    motor.parar(0.1)
+    assert.equal(fonte.parou, true)
+    assert.ok(c.soltos.includes('fonte'))
+    assert.equal(motor.tocando(), false)
+    assert.equal(motor.definir({ taxa: 1 }), false)
+    motor.retomar()
+    assert.equal(motor.definir({ taxa: 1 }), true)
+  })
+
+  test('a voz religa num contexto novo (o iOS fecha o antigo ao voltar do fundo)', async () => {
+    let c = contextoFalso()
+    const a = criarAudio({ contexto: () => c }, { pacote: await pacote(['motor.wav']) })
+    const motor = a.voz('motor.wav')
+    motor.definir({ taxa: 1 }) // o primeiro toque no contexto começa a decodificar
+    await a.pronto()
+    motor.definir({ taxa: 1 })
+    const velha = c.ultimaFonte
+    c = contextoFalso()
+    motor.definir({ taxa: 1 })
+    assert.equal(velha.parou, true)
+    assert.notEqual(c.ultimaFonte, undefined)
   })
 })

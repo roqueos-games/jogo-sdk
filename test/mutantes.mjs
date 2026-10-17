@@ -21,6 +21,17 @@ const MUTANTES = [
     (t) => t.replace('if (!l.vivo) l.vivo = ligarLaco(nome, l)', ''),
     SOM,
   ],
+  ['som: a voz não para ao parar', (t) => t.replace('if (viva) calar(viva, fade)', ''), SOM],
+  [
+    'som: a voz não desliza o tom',
+    (t) => t.replace('deslizar(v.fonte.playbackRate, Math.max(0.05, taxa), t)', ''),
+    SOM,
+  ],
+  [
+    'som: a voz cria uma fonte por quadro',
+    (t) => t.replace('if (viva && viva.c === c) return viva', ''),
+    SOM,
+  ],
   [
     'som: preparar não decodifica',
     (t) =>
