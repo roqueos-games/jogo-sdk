@@ -98,6 +98,33 @@ cena.add(cenario.modelo('banco', 0.75)) // 75 cm de altura, pé no chão, centra
 cenario.aplicarCeu(renderer, cena, { fundo: true })
 ```
 
+Gráfico e menu de configurações, iguais em todos os jogos:
+
+```js
+import {
+  configuracaoPadrao,
+  carregarConfiguracao,
+  salvarConfiguracao,
+  criarPosProcesso,
+} from '@roqueos-games/jogo-sdk/grafico'
+import { abrirPainel } from '@roqueos-games/jogo-sdk/painel'
+
+let cfg = carregarConfiguracao(
+  host.armazenamento,
+  configuracaoPadrao({ modoLeve, toque }, { fov: 50 }),
+)
+const pos = criarPosProcesso({ THREE, renderer, scene, camera, cfg, modulos }) // passes do three do jogo
+abrirPainel({
+  raiz,
+  idioma,
+  cfg,
+  aoMudarGrafico: (c) => {
+    pos.aplicar(c)
+    salvarConfiguracao(host.armazenamento, c)
+  },
+})
+```
+
 3. O que só o desktop carrega mora numa pasta `alto/`: é ela que fica fora dos 30 MB do perfil
    baixo. O asset do Fab nunca vai cru para `public/`: o EULA manda impedir a extração.
 4. `jogo olho antes` e `jogo olho depois` fotografam o mesmo roteiro em desktop, celular e TV e

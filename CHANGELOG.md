@@ -14,6 +14,14 @@ continua na versão 1: nada aqui muda a forma de uma capacidade, e o host do Roq
   (Goal 83) junta modelos, texturas PBR e céu num pedido só, mede e assenta o modelo no chão e
   veste material com repetição própria; o que faltar fica listado e não derruba a cena. O SDK não
   importa o three: o jogo entrega os módulos da versão dele.
+- `@roqueos-games/jogo-sdk/grafico` (pedido do fundador de 16/10/2026, 21h02, para todos os
+  jogos): qualidades Baixo, Médio, Alto e Ultra (Ultra no computador, Médio no toque, Baixo no
+  aparelho fraco), cada efeito ligável à parte (oclusão de ambiente GTAO, bloom, borrão de
+  movimento da câmera, antisserrilhado, vinheta), FOV, a escolha guardada no `armazenamento` do
+  host, e `criarPosProcesso`, a cadeia do quadro sobre o EffectComposer do three do jogo.
+- `@roqueos-games/jogo-sdk/painel`: o painel de configurações (Gráfico e Som) em DOM puro,
+  folha que sobe do pé da tela no celular e cartão no computador, alvos de 48 px, área segura
+  do iPhone, nos dez idiomas.
 - `jogo assets importar`: lê `assets/importar.json` e transforma o modelo (Poly Haven pela API,
   ou arquivo baixado à mão do Sketchfab, do Mixamo ou do Fab; FBX, OBJ e `.blend` passam pelo
   Blender sem janela) em GLB com geometria meshopt e textura WebP. Fixa o SHA-256 do original em

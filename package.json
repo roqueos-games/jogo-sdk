@@ -15,7 +15,9 @@
     "./host-falso": "./src/host/falso.js",
     "./armazenamento": "./src/host/armazenamento.js",
     "./sala-ao-vivo": "./src/host/salaAoVivo.js",
-    "./modelos": "./src/modelos.js"
+    "./modelos": "./src/modelos.js",
+    "./grafico": "./src/grafico.js",
+    "./painel": "./src/painel.js"
   },
   "bin": {
     "jogo": "./bin/jogo.mjs"
