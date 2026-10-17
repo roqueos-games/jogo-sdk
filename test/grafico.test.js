@@ -9,6 +9,9 @@ import {
   PRESETS,
   EFEITOS,
   FOV,
+  DESFOQUE,
+  FOCO,
+  escalaDoDesfoque,
   BORRAO,
   SHADER_DO_BORRAO,
   qualidadePadrao,
@@ -76,6 +79,32 @@ describe('escolha guardada', () => {
     assert.deepEqual(c.efeitos, {})
     a.gravar('grafico', '{quebrado')
     assert.equal(carregarConfiguracao(a, padrao).qualidade, 'ultra')
+  })
+})
+
+describe('força do desfoque', () => {
+  test('0 é nítido, o padrão é o do jogo, 1 é o dobro; fora da faixa fica na borda', () => {
+    assert.equal(escalaDoDesfoque({}), 1)
+    assert.equal(escalaDoDesfoque({ desfoque: DESFOQUE.padrao }), 1)
+    assert.equal(escalaDoDesfoque({ desfoque: 0 }), 0)
+    assert.equal(escalaDoDesfoque({ desfoque: 1 }), 2)
+    assert.equal(escalaDoDesfoque({ desfoque: 7 }), 2)
+    assert.equal(escalaDoDesfoque({ desfoque: NaN }), 1)
+  })
+
+  test('a escolha do jogador volta como foi gravada, e quem nunca mexeu não ganha o campo', () => {
+    const a = memoria()
+    const padrao = configuracaoPadrao({}, { fov: 50 })
+    salvarConfiguracao(a, { ...padrao, desfoque: 0.8 })
+    assert.equal(carregarConfiguracao(a, padrao).desfoque, 0.8)
+    salvarConfiguracao(a, padrao)
+    assert.equal('desfoque' in carregarConfiguracao(a, padrao), false)
+    a.gravar('grafico', JSON.stringify({ desfoque: -3 }))
+    assert.equal(carregarConfiguracao(a, padrao).desfoque, 0)
+  })
+
+  test('o painel nomeia a força nos dez idiomas', () => {
+    for (const idioma of IDIOMAS) assert.ok(TEXTOS_DO_PAINEL[idioma].desfoque, idioma)
   })
 })
 
@@ -212,6 +241,47 @@ describe('cadeia de pós-processamento', () => {
     assert.equal(com.passes.foco.uniforms.focus.value, 1.8)
     com.aplicar({ qualidade: 'alto', efeitos: {} })
     assert.ok(!com.passes.foco.enabled)
+  })
+
+  test('o desfoque parte do que o jogo pediu e segue a força escolhida no painel', () => {
+    class Bokeh extends Passe {
+      constructor(scene, camera, p) {
+        super()
+        this.uniforms = {
+          focus: { value: p.focus },
+          aperture: { value: p.aperture },
+          maxblur: { value: p.maxblur },
+        }
+      }
+    }
+    const camera = new THREE.PerspectiveCamera()
+    const doJogo = { aperture: 0.004, maxblur: 0.016 }
+    const p = criarPosProcesso({
+      THREE,
+      renderer,
+      scene: new THREE.Scene(),
+      camera,
+      modulos: { ...modulos, BokehPass: Bokeh },
+      foco: doJogo,
+      cfg: { qualidade: 'ultra', efeitos: {} },
+    })
+    assert.equal(p.passes.foco.uniforms.aperture.value, doJogo.aperture)
+    assert.equal(p.passes.foco.uniforms.maxblur.value, doJogo.maxblur)
+    p.aplicar({ qualidade: 'ultra', efeitos: {}, desfoque: 1 })
+    assert.equal(p.passes.foco.uniforms.aperture.value, doJogo.aperture * 2)
+    assert.equal(p.passes.foco.uniforms.maxblur.value, doJogo.maxblur * 2)
+    p.aplicar({ qualidade: 'ultra', efeitos: {}, desfoque: 0 })
+    assert.equal(p.passes.foco.uniforms.maxblur.value, 0)
+    // sem o do jogo, o padrão do SDK
+    const padrao = criarPosProcesso({
+      THREE,
+      renderer,
+      scene: new THREE.Scene(),
+      camera,
+      modulos: { ...modulos, BokehPass: Bokeh },
+      cfg: { qualidade: 'ultra', efeitos: {} },
+    })
+    assert.equal(padrao.passes.foco.uniforms.aperture.value, FOCO.aperture)
   })
 
   test('o borrão não age no primeiro quadro nem num corte de câmera', () => {

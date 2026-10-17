@@ -68,6 +68,18 @@ export const EFEITOS = Object.freeze(['ao', 'bloom', 'borrao', 'foco', 'aa', 'vi
 export const FOV = Object.freeze({ min: 35, max: 90 })
 
 /**
+ * A força do desfoque do fundo, de 0 (nítido) a 1 (o dobro do do jogo); 0,5 é o que o jogo
+ * escolheu (fundador, 16/10/2026: "quero poder controlar o blur"). Opcional na configuração.
+ */
+export const DESFOQUE = Object.freeze({ min: 0, max: 1, padrao: 0.5 })
+
+/** Quanto multiplicar a abertura e o teto do desfoque do jogo: 0 a 2, 1 no padrão. */
+export function escalaDoDesfoque(cfg) {
+  const d = Number.isFinite(cfg?.desfoque) ? cfg.desfoque : DESFOQUE.padrao
+  return 2 * Math.min(DESFOQUE.max, Math.max(DESFOQUE.min, d))
+}
+
+/**
  * A qualidade de quem nunca escolheu: Ultra no computador (o pedido do fundador), Médio na
  * tela de toque, Baixo no aparelho que o host marca como fraco.
  */
@@ -95,6 +107,8 @@ export function carregarConfiguracao(armazenamento, padrao) {
   if (!salvo || typeof salvo !== 'object') return cfg
   if (QUALIDADES.includes(salvo.qualidade)) cfg.qualidade = salvo.qualidade
   if (Number.isFinite(salvo.fov)) cfg.fov = Math.min(FOV.max, Math.max(FOV.min, salvo.fov))
+  if (Number.isFinite(salvo.desfoque))
+    cfg.desfoque = Math.min(DESFOQUE.max, Math.max(DESFOQUE.min, salvo.desfoque))
   for (const e of EFEITOS)
     if (typeof salvo.efeitos?.[e] === 'boolean') cfg.efeitos[e] = salvo.efeitos[e]
   return cfg
@@ -103,7 +117,12 @@ export function carregarConfiguracao(armazenamento, padrao) {
 export function salvarConfiguracao(armazenamento, cfg) {
   return armazenamento?.gravar?.(
     CHAVE,
-    JSON.stringify({ qualidade: cfg.qualidade, fov: cfg.fov, efeitos: cfg.efeitos }),
+    JSON.stringify({
+      qualidade: cfg.qualidade,
+      fov: cfg.fov,
+      efeitos: cfg.efeitos,
+      ...(Number.isFinite(cfg.desfoque) ? { desfoque: cfg.desfoque } : {}),
+    }),
   )
 }
 
@@ -227,9 +246,19 @@ export const ladoDaSombra = (cfg) => (PRESETS[cfg.qualidade] ?? PRESETS.medio).s
  * sempre e liga ou desliga sem recompilar (`enabled`), para trocar no menu sem travar o jogo.
  *
  * `modulos`: { EffectComposer, RenderPass, GTAOPass, UnrealBloomPass, OutputPass, ShaderPass,
- *              FXAAShader } do three do jogo. `bloom`: { forca, raio, limiar }.
+ *              FXAAShader } do three do jogo. `bloom`: { forca, raio, limiar }. `foco`: { aperture,
+ *              maxblur }, o desfoque do jogo no padrão (`cfg.desfoque` 0,5); sem ele, FOCO.
  */
-export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg, bloom = {} }) {
+export function criarPosProcesso({
+  THREE,
+  renderer,
+  scene,
+  camera,
+  modulos,
+  cfg,
+  bloom = {},
+  foco: focoDoJogo = FOCO,
+}) {
   const {
     EffectComposer,
     RenderPass,
@@ -273,7 +302,7 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
   // O desfoque do fundo (profundidade de campo, 16/10/2026): opcional, só se o jogo passar o
   // BokehPass do three. O jogo diz onde focar (`focar`, em metros da câmera); o que está a ±1 m
   // fica nítido e o fundo borra. Ele desenha a profundidade da cena de novo, por isso é do ultra.
-  const foco = BokehPass ? new BokehPass(scene, camera, { focus: 2.5, ...FOCO }) : null
+  const foco = BokehPass ? new BokehPass(scene, camera, { focus: 2.5, ...focoDoJogo }) : null
   const lista = [cena, borrao, ao, foco, brilho, saida, aa, vinheta].filter(Boolean)
   for (const p of lista) composer.addPass(p)
   let profundidade = alvo.depthTexture
@@ -298,7 +327,13 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
     ao.enabled = efeitoLigado(novo, 'ao')
     brilho.enabled = efeitoLigado(novo, 'bloom')
     borrao.enabled = efeitoLigado(novo, 'borrao')
-    if (foco) foco.enabled = efeitoLigado(novo, 'foco')
+    if (foco) {
+      foco.enabled = efeitoLigado(novo, 'foco')
+      // a força que o jogador escolheu sobre a do jogo
+      const k = escalaDoDesfoque(novo)
+      if (foco.uniforms.aperture) foco.uniforms.aperture.value = focoDoJogo.aperture * k
+      if (foco.uniforms.maxblur) foco.uniforms.maxblur.value = focoDoJogo.maxblur * k
+    }
     aa.enabled = efeitoLigado(novo, 'aa')
     vinheta.enabled = efeitoLigado(novo, 'vinheta')
     aplicarNoRenderizador(renderer, novo)

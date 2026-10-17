@@ -7,7 +7,18 @@ import { fileURLToPath } from 'node:url'
 
 const ALVO = fileURLToPath(new URL('../src/verificacao.js', import.meta.url))
 const MODELOS = fileURLToPath(new URL('../src/modelos.js', import.meta.url))
+const GRAFICO = fileURLToPath(new URL('../src/grafico.js', import.meta.url))
 const MUTANTES = [
+  [
+    'desfoque: a força do painel ignorada',
+    (t) => t.replace('const k = escalaDoDesfoque(novo)', 'const k = 1'),
+    GRAFICO,
+  ],
+  [
+    'desfoque: o do jogo ignorado',
+    (t) => t.replace('focoDoJogo.aperture * k', 'FOCO.aperture * k'),
+    GRAFICO,
+  ],
   ['teto do baixo desligado', (t) => t.replace('if (baixo > teto.baixo * MB)', 'if (false)')],
   ['teto do alto desligado', (t) => t.replace('if (total > teto.alto * MB)', 'if (false)')],
   ['alto/ conta no baixo', (t) => t.replace(".split('/').includes('alto')", '.length < 0')],
@@ -40,10 +51,11 @@ const MUTANTES = [
   ],
 ]
 
-const originais = new Map([ALVO, MODELOS].map((a) => [a, readFileSync(a, 'utf8')]))
+const originais = new Map([ALVO, MODELOS, GRAFICO].map((a) => [a, readFileSync(a, 'utf8')]))
 const SUITE = new Map([
   [ALVO, 'test/verificacao.test.js'],
   [MODELOS, 'test/cenario.test.js'],
+  [GRAFICO, 'test/grafico.test.js'],
 ])
 let vivos = 0
 try {

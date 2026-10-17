@@ -6,7 +6,7 @@
 // Pedido do fundador de 16/10/2026, 21h02: "os menus e HUD estão ruins, poderíamos melhorar
 // bastante para jogar principalmente no mobile".
 
-import { QUALIDADES, EFEITOS, FOV, efeitoLigado, trocarQualidade } from './grafico.js'
+import { QUALIDADES, EFEITOS, FOV, DESFOQUE, efeitoLigado, trocarQualidade } from './grafico.js'
 import { normalizarIdioma } from './idiomas.js'
 
 /** Os textos do painel nos dez idiomas do RoqueOS. */
@@ -19,6 +19,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: 'Qualidade',
     efeitos: 'Efeitos',
     fov: 'Campo de visão',
+    desfoque: 'Força do desfoque',
     geral: 'Geral',
     efeitosSom: 'Efeitos',
     musica: 'Música',
@@ -40,6 +41,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: 'Quality',
     efeitos: 'Effects',
     fov: 'Field of view',
+    desfoque: 'Blur strength',
     geral: 'Master',
     efeitosSom: 'Effects',
     musica: 'Music',
@@ -61,6 +63,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: 'Calidad',
     efeitos: 'Efectos',
     fov: 'Campo de visión',
+    desfoque: 'Intensidad del desenfoque',
     geral: 'General',
     efeitosSom: 'Efectos',
     musica: 'Música',
@@ -82,6 +85,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: 'Qualité',
     efeitos: 'Effets',
     fov: 'Champ de vision',
+    desfoque: 'Intensité du flou',
     geral: 'Général',
     efeitosSom: 'Effets',
     musica: 'Musique',
@@ -103,6 +107,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: 'Qualität',
     efeitos: 'Effekte',
     fov: 'Sichtfeld',
+    desfoque: 'Stärke der Unschärfe',
     geral: 'Gesamt',
     efeitosSom: 'Effekte',
     musica: 'Musik',
@@ -124,6 +129,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: '品質',
     efeitos: 'エフェクト',
     fov: '視野角',
+    desfoque: 'ぼかしの強さ',
     geral: '全体',
     efeitosSom: '効果音',
     musica: '音楽',
@@ -145,6 +151,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: '画质',
     efeitos: '特效',
     fov: '视野',
+    desfoque: '模糊强度',
     geral: '总音量',
     efeitosSom: '音效',
     musica: '音乐',
@@ -166,6 +173,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: 'गुणवत्ता',
     efeitos: 'प्रभाव',
     fov: 'दृष्टि क्षेत्र',
+    desfoque: 'धुंधलेपन की तीव्रता',
     geral: 'मुख्य',
     efeitosSom: 'प्रभाव',
     musica: 'संगीत',
@@ -187,6 +195,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: 'Качество',
     efeitos: 'Эффекты',
     fov: 'Поле зрения',
+    desfoque: 'Сила размытия',
     geral: 'Общая',
     efeitosSom: 'Эффекты',
     musica: 'Музыка',
@@ -208,6 +217,7 @@ export const TEXTOS_DO_PAINEL = Object.freeze({
     qualidade: 'الجودة',
     efeitos: 'التأثيرات',
     fov: 'مجال الرؤية',
+    desfoque: 'قوة التمويه',
     geral: 'الرئيسي',
     efeitosSom: 'المؤثرات',
     musica: 'الموسيقى',
@@ -295,6 +305,8 @@ export function abrirPainel({
   aoMudarSom = () => {},
   aoFechar = () => {},
   aba: abaInicial = 'grafico',
+  /** o jogo tem desfoque do fundo (BokehPass): mostra a força dele */
+  comDesfoque = false,
 }) {
   const doc = raiz.ownerDocument
   injetarCss(doc)
@@ -395,6 +407,25 @@ export function abrirPainel({
       e.append(linha)
     }
     folha.append(e)
+
+    // a força do desfoque do fundo: só aparece com o desfoque ligado (e só no jogo que o tem)
+    if (comDesfoque && efeitoLigado(estado, 'foco')) {
+      folha.append(
+        faixa(
+          t.desfoque,
+          Number.isFinite(estado.desfoque) ? estado.desfoque : DESFOQUE.padrao,
+          DESFOQUE.min,
+          DESFOQUE.max,
+          0.05,
+          (v) => `${Math.round(v * 100)}%`,
+          (v) => {
+            estado = { ...estado, desfoque: v }
+            aoMudarGrafico(estado)
+          },
+          'desfoque',
+        ),
+      )
+    }
 
     if (Number.isFinite(estado.fov)) {
       folha.append(
