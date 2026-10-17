@@ -22,6 +22,7 @@ export const PRESETS = Object.freeze({
     ao: false,
     bloom: false,
     borrao: false,
+    foco: false,
     aa: true,
     vinheta: false,
   }),
@@ -32,6 +33,7 @@ export const PRESETS = Object.freeze({
     ao: false,
     bloom: true,
     borrao: false,
+    foco: false,
     aa: true,
     vinheta: true,
   }),
@@ -42,6 +44,7 @@ export const PRESETS = Object.freeze({
     ao: true,
     bloom: true,
     borrao: false,
+    foco: false,
     aa: true,
     vinheta: true,
   }),
@@ -52,13 +55,14 @@ export const PRESETS = Object.freeze({
     ao: true,
     bloom: true,
     borrao: true,
+    foco: true,
     aa: true,
     vinheta: true,
   }),
 })
 
 /** Os efeitos que o jogador liga e desliga, na ordem do menu. */
-export const EFEITOS = Object.freeze(['ao', 'bloom', 'borrao', 'aa', 'vinheta'])
+export const EFEITOS = Object.freeze(['ao', 'bloom', 'borrao', 'foco', 'aa', 'vinheta'])
 
 /** FOV vertical, em graus: o jogo diz o dele; o jogador mexe dentro desta faixa. */
 export const FOV = Object.freeze({ min: 35, max: 90 })
@@ -123,6 +127,13 @@ export function trocarQualidade(cfg, qualidade) {
  * câmera: o que se move sozinho na cena não borra. Corte de câmera (salto acima de CORTE metros)
  * não borra naquele quadro.
  */
+/**
+ * O desfoque do fundo, em metros: o BokehPass do three borra `(foco - distância) * abertura`,
+ * até `maximo` (fração da tela). Com a mesa a 2 m e a parede a 6 m, o fundo fica no máximo e a
+ * mesa (±1 m do foco) quase não borra.
+ */
+export const FOCO = Object.freeze({ aperture: 0.0022, maxblur: 0.0065 })
+
 export const BORRAO = Object.freeze({ amostras: 10, obturador: 0.35, maximo: 0.03, corte: 1.5 })
 
 export const SHADER_DO_BORRAO = Object.freeze({
@@ -227,6 +238,7 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
     OutputPass,
     ShaderPass,
     FXAAShader,
+    BokehPass,
   } = modulos
   const tamanho = renderer.getSize(new THREE.Vector2())
   const alvo = new THREE.WebGLRenderTarget(tamanho.x, tamanho.y, { type: THREE.HalfFloatType })
@@ -258,7 +270,12 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
   // de desenhar sem ela estar presa ao alvo em que ele escreve. Com o borrão depois do AO (que
   // troca os alvos) ele escrevia justamente no alvo dono daquela profundidade: laço de
   // realimentação, GL_INVALID_OPERATION e tela preta no Chrome (16/10/2026).
-  for (const p of [cena, borrao, ao, brilho, saida, aa, vinheta]) composer.addPass(p)
+  // O desfoque do fundo (profundidade de campo, 16/10/2026): opcional, só se o jogo passar o
+  // BokehPass do three. O jogo diz onde focar (`focar`, em metros da câmera); o que está a ±1 m
+  // fica nítido e o fundo borra. Ele desenha a profundidade da cena de novo, por isso é do ultra.
+  const foco = BokehPass ? new BokehPass(scene, camera, { focus: 2.5, ...FOCO }) : null
+  const lista = [cena, borrao, ao, foco, brilho, saida, aa, vinheta].filter(Boolean)
+  for (const p of lista) composer.addPass(p)
   let profundidade = alvo.depthTexture
   const desenharCena = cena.render.bind(cena)
   cena.render = (r, escrita, leitura, ...resto) => {
@@ -281,6 +298,7 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
     ao.enabled = efeitoLigado(novo, 'ao')
     brilho.enabled = efeitoLigado(novo, 'bloom')
     borrao.enabled = efeitoLigado(novo, 'borrao')
+    if (foco) foco.enabled = efeitoLigado(novo, 'foco')
     aa.enabled = efeitoLigado(novo, 'aa')
     vinheta.enabled = efeitoLigado(novo, 'vinheta')
     aplicarNoRenderizador(renderer, novo)
@@ -293,6 +311,7 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
     composer.setPixelRatio?.(pr)
     composer.setSize(w, h)
     ao.setSize?.(w * pr, h * pr)
+    foco?.setSize?.(w * pr, h * pr)
     brilho.setSize?.(w * pr, h * pr)
     aa.material.uniforms.resolution?.value.set(1 / (w * pr), 1 / (h * pr))
   }
@@ -315,7 +334,11 @@ export function criarPosProcesso({ THREE, renderer, scene, camera, modulos, cfg,
   aplicar(cfg)
   return {
     composer,
-    passes: { cena, ao, borrao, brilho, saida, aa, vinheta },
+    passes: { cena, ao, borrao, foco, brilho, saida, aa, vinheta },
+    /** Onde o desfoque do fundo foca, em metros da câmera. */
+    focar(distancia) {
+      if (foco && Number.isFinite(distancia)) foco.uniforms.focus.value = distancia
+    },
     aplicar,
     render,
     redimensionar,

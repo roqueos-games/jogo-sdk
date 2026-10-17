@@ -186,6 +186,34 @@ describe('cadeia de pós-processamento', () => {
     assert.equal(p.composer.passes.length, 7)
   })
 
+  test('o desfoque do fundo entra só se o jogo passar o BokehPass, liga no ultra e foca onde mandam', () => {
+    class Bokeh extends Passe {
+      constructor(scene, camera, p) {
+        super()
+        this.uniforms = { focus: { value: p.focus }, aperture: { value: p.aperture } }
+      }
+    }
+    const camera = new THREE.PerspectiveCamera()
+    const base = { THREE, renderer, scene: new THREE.Scene(), camera }
+    const sem = criarPosProcesso({ ...base, modulos, cfg: { qualidade: 'ultra', efeitos: {} } })
+    assert.equal(sem.passes.foco, null)
+    assert.equal(sem.composer.passes.length, 7)
+    const com = criarPosProcesso({
+      ...base,
+      modulos: { ...modulos, BokehPass: Bokeh },
+      cfg: { qualidade: 'ultra', efeitos: {} },
+    })
+    assert.equal(com.composer.passes.length, 8)
+    assert.equal(com.composer.passes[3], com.passes.foco, 'depois do AO, antes do bloom')
+    assert.ok(com.passes.foco.enabled)
+    com.focar(1.8)
+    assert.equal(com.passes.foco.uniforms.focus.value, 1.8)
+    com.focar(NaN)
+    assert.equal(com.passes.foco.uniforms.focus.value, 1.8)
+    com.aplicar({ qualidade: 'alto', efeitos: {} })
+    assert.ok(!com.passes.foco.enabled)
+  })
+
   test('o borrão não age no primeiro quadro nem num corte de câmera', () => {
     const camera = new THREE.PerspectiveCamera()
     const p = criarPosProcesso({
