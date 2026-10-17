@@ -147,6 +147,37 @@ devia.
   devolve texto ou `null`. O host de desenvolvimento não tem `ia`, de propósito; no teste,
   `criarHostFalso({ ia: async (pedido) => 'resposta', iaDisponivel: true })`.
 
+### Som e tela de entrada: `./som` e `./carga` (desde 0.5.0)
+
+A régua que a Sinuca firmou para todos os jogos: som gravado em alta definição desde a primeira
+jogada, no espaço, e uma tela de entrada que mede a carga de verdade.
+
+```js
+import { criarAudio } from '@roqueos-games/jogo-sdk/som'
+import { criarCarga } from '@roqueos-games/jogo-sdk/carga'
+import { carregarPacote } from '@roqueos-games/jogo-sdk/pacote'
+
+const audio = criarAudio(host.audio, {
+  pacote: () => carregarPacote(`${BASE}sons.pak`, CHAVE), // gravações cifradas
+  espaco: { refDistance: 1.2, rolloffFactor: 1.1, maxDistance: 40 }, // na unidade da cena
+})
+const carga = criarCarga({ manager: THREE.DefaultLoadingManager })
+carga.etapa('mesa', mesaPronta)
+carga.etapa('sons', audio.preparar()) // a primeira jogada já sai gravada
+carga.aoMudar(({ progresso, etapa }) => desenharEntrada(progresso, etapa))
+
+audio.tocar(audio.variacao('peca', 6), { pos: { x, y, z }, taxa: audio.tom() }) || audio.blip(360)
+audio.laco('fogo.mp3', true, { lugares: [{ x: 0, y: 8, z: -40 }] }) // ambiente em laço, no espaço
+audio.ouvir({ pos, frente, cima }) // a câmera, a cada quadro
+
+const motor = audio.voz('motor.wav') // voz contínua que o jogo dirige a cada quadro
+motor.definir({ taxa: 0.7 + rotacao * 0.9, ganho: 0.8 }) // desliza, sem estalo
+motor.parar() // fade e solta os nós
+```
+
+Cada golpe sai do grafo de áudio quando acaba (o panner HRTF é o nó mais caro). Sem pacote ou sem
+contexto, `tocar` devolve false e o jogo toca a síntese de reserva (`blip`).
+
 ### Partida online: a capacidade `sala` (desde 0.2.0)
 
 Dois jogadores, um tabuleiro: um cria a sala e recebe um código de cinco letras e um link (o

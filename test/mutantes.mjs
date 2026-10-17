@@ -8,7 +8,54 @@ import { fileURLToPath } from 'node:url'
 const ALVO = fileURLToPath(new URL('../src/verificacao.js', import.meta.url))
 const MODELOS = fileURLToPath(new URL('../src/modelos.js', import.meta.url))
 const GRAFICO = fileURLToPath(new URL('../src/grafico.js', import.meta.url))
+const SOM = fileURLToPath(new URL('../src/som.js', import.meta.url))
+const CARGA = fileURLToPath(new URL('../src/carga.js', import.meta.url))
 const MUTANTES = [
+  [
+    'som: o golpe não sai do grafo',
+    (t) => t.replace('fonte.onended = () => soltar(fonte, g, panner)', ''),
+    SOM,
+  ],
+  [
+    'som: o laço pedido não liga',
+    (t) => t.replace('if (!l.vivo) l.vivo = ligarLaco(nome, l)', ''),
+    SOM,
+  ],
+  ['som: a voz não para ao parar', (t) => t.replace('if (viva) calar(viva, fade)', ''), SOM],
+  [
+    'som: a voz não desliza o tom',
+    (t) => t.replace('deslizar(v.fonte.playbackRate, Math.max(0.05, taxa), t)', ''),
+    SOM,
+  ],
+  [
+    'som: a voz cria uma fonte por quadro',
+    (t) => t.replace('if (viva && viva.c === c) return viva', ''),
+    SOM,
+  ],
+  [
+    'som: preparar não decodifica',
+    (t) =>
+      t.replace(
+        'carregando = decodificarCom(new Offline(2, 44100, 44100))',
+        'carregando = Promise.resolve()',
+      ),
+    SOM,
+  ],
+  [
+    'carga: falha segura a tela',
+    (t) =>
+      t.replace(
+        '.catch(() => null)\n        .then(() => {\n          etapas.set(nome, true)',
+        '.then(() => {\n          etapas.set(nome, true)',
+      ),
+    CARGA,
+  ],
+  [
+    'carga: o número desce',
+    (t) =>
+      t.replace('visto = Math.max(visto, lista.length ? p : 0)', 'visto = lista.length ? p : 0'),
+    CARGA,
+  ],
   [
     'celular volta para o médio',
     (t) => t.replace('if (modoLeve || toque) return', 'if (modoLeve) return'),
@@ -56,11 +103,15 @@ const MUTANTES = [
   ],
 ]
 
-const originais = new Map([ALVO, MODELOS, GRAFICO].map((a) => [a, readFileSync(a, 'utf8')]))
+const originais = new Map(
+  [ALVO, MODELOS, GRAFICO, SOM, CARGA].map((a) => [a, readFileSync(a, 'utf8')]),
+)
 const SUITE = new Map([
   [ALVO, 'test/verificacao.test.js'],
   [MODELOS, 'test/cenario.test.js'],
   [GRAFICO, 'test/grafico.test.js'],
+  [SOM, 'test/som.test.js'],
+  [CARGA, 'test/carga.test.js'],
 ])
 let vivos = 0
 try {
