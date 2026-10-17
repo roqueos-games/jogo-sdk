@@ -32,6 +32,9 @@ export const LICENCAS_DE_ASSET = Object.freeze([
   'MIT',
   'BSD-3-Clause',
   'autoral',
+  // as duas restritas: só passam dentro de .pak e em jogo fechado (conferirFab)
+  'LicenseRef-Fab-Standard',
+  'LicenseRef-Sonniss-GDC',
 ])
 
 const lerJson = (arquivo) => JSON.parse(readFileSync(arquivo, 'utf8'))
