@@ -312,6 +312,11 @@ function registrarEscritos(ledger, item, escritos) {
 export async function importar(raiz, { apenas } = {}) {
   const lista = JSON.parse(readFileSync(join(raiz, 'assets/importar.json'), 'utf8'))
   const problemas = validarLista(lista)
+  // Id que não está na lista é erro de digitação: recusa antes de escrever qualquer coisa,
+  // em vez de importar zero itens e dizer "ok" (0.5.1).
+  for (const id of apenas ?? [])
+    if (!(lista?.itens ?? []).some((item) => item?.id === id))
+      problemas.push(`--apenas: o id "${id}" não está em assets/importar.json`)
   if (problemas.length) throw new Error(problemas.join('\n'))
   const { NodeIO } = await doJogo(raiz, '@gltf-transform/core')
   const { ALL_EXTENSIONS } = await doJogo(raiz, '@gltf-transform/extensions')

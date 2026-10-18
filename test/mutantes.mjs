@@ -10,7 +10,43 @@ const MODELOS = fileURLToPath(new URL('../src/modelos.js', import.meta.url))
 const GRAFICO = fileURLToPath(new URL('../src/grafico.js', import.meta.url))
 const SOM = fileURLToPath(new URL('../src/som.js', import.meta.url))
 const CARGA = fileURLToPath(new URL('../src/carga.js', import.meta.url))
+const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url))
+const IMPORTADOR = fileURLToPath(new URL('../src/importador.js', import.meta.url))
 const MUTANTES = [
+  [
+    'cli: opção desconhecida aceita',
+    (t) =>
+      t.replace(
+        'if (!def) return erro(onde, `opção desconhecida ${arg}`, uso)',
+        'if (!def) continue',
+      ),
+    CLI,
+  ],
+  [
+    'cli: --usage no comando ignorado',
+    (t) => t.replace('if (pedeAjuda) return { ajuda: ajudaDoComando(nome) }', ''),
+    CLI,
+  ],
+  [
+    'cli: --apenas sem valor aceito',
+    (t) =>
+      t.replace(
+        'if (!valor) return erro(onde, `--${chave} precisa de valor: --${chave}=…`, uso)',
+        '',
+      ),
+    CLI,
+  ],
+  [
+    'cli: argumento solto a mais aceito',
+    (t) => t.replace('if (posicionais.length > comando.posicionais.max) {', 'if (false) {'),
+    CLI,
+  ],
+  [
+    'importador: id fora da lista do --apenas aceito',
+    (t) =>
+      t.replace('problemas.push(`--apenas: o id "${id}" não está em assets/importar.json`)', ''),
+    IMPORTADOR,
+  ],
   [
     'som: o golpe não sai do grafo',
     (t) => t.replace('fonte.onended = () => soltar(fonte, g, panner)', ''),
@@ -104,9 +140,11 @@ const MUTANTES = [
 ]
 
 const originais = new Map(
-  [ALVO, MODELOS, GRAFICO, SOM, CARGA].map((a) => [a, readFileSync(a, 'utf8')]),
+  [ALVO, MODELOS, GRAFICO, SOM, CARGA, CLI, IMPORTADOR].map((a) => [a, readFileSync(a, 'utf8')]),
 )
 const SUITE = new Map([
+  [CLI, 'test/cli.test.js'],
+  [IMPORTADOR, 'test/cli.test.js'],
   [ALVO, 'test/verificacao.test.js'],
   [MODELOS, 'test/cenario.test.js'],
   [GRAFICO, 'test/grafico.test.js'],
