@@ -216,7 +216,28 @@ export const CAPACIDADES = Object.freeze({
     obrigatoria: false,
     forma: { disponivel: FN, carregar: FN, salvar: FN },
     porque:
-      'O jogo salvo do jogador, na conta dele: o herói, o mundo. Um documento por jogo, que o host já nasce sabendo qual é. "Não tem save" e "não consegui ler o save" são respostas diferentes (null e rejeição), porque confundir as duas grava um mundo vazio por cima de meses de construção. Sem conta, disponivel() é false e nada vai para a conta.',
+      'O jogo salvo do jogador, na conta dele: o herói, o mundo. Um documento por jogo, que o host já nasce sabendo qual é. "Não tem save" e "não consegui ler o save" são respostas diferentes (null e rejeição), porque confundir as duas grava um mundo vazio por cima de meses de construção. Sem onde guardar, disponivel() é false e nada é gravado. O host decide onde guarda: na conta, ou, para o jogo que ele escolher, no servidor como save de convidado (0.6.0).',
+  },
+  // A retomada (desde 0.6.0), função por função:
+  //
+  //   estado()  → 'conta' | 'convidado' | 'sem-onde'. Onde o progresso desta
+  //       janela está guardado agora. 'sem-onde': nem conta nem save de
+  //       convidado (o aparelho não guarda, ou a sessão foi levada embora).
+  //   link()  → Promise<{ url, expiraEm } | null>. O link para continuar em
+  //       outro aparelho, com prazo (expiraEm em ms) e de uso único. Gerar de
+  //       novo invalida o anterior. null quando não há o que levar (conta, ou
+  //       sem onde guardar) ou quando o host não conseguiu. Quem tem o link
+  //       leva o herói: o jogo diz isso na tela onde mostra o link.
+  //   revogar()  → Promise<boolean>. Invalida o link pendente.
+  //   levarParaConta()  → Promise<'aberto' | 'indisponivel'>. Abre o caminho
+  //       para entrar ou criar conta; quando a conta aparece, o host leva o
+  //       save de convidado para ela sem sobrescrever nada, e avisa o jogador
+  //       do resultado. O jogo fica sabendo pela identidade.aoMudar.
+  retomada: {
+    obrigatoria: false,
+    forma: { estado: FN, link: FN, revogar: FN, levarParaConta: FN },
+    porque:
+      'Continuar de onde parou sem conta: o host guarda o save do convidado e dá um link temporário, de uso único, para abrir o mesmo herói em outro aparelho, e leva esse herói para a conta quando a pessoa se registra. O jogo nunca vê segredo nem código: pede o link e mostra. O código do link vai no fragmento da URL (#), que não chega a servidor nem a log.',
   },
 })
 

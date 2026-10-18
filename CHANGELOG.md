@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0 (18/10/2026)
+
+A capacidade opcional `retomada` (goal104, pedido do founder: "mesmo sendo convidado sem conta
+seria legal gravar uma url temporária para a pessoa poder continuar de onde parou e poder se
+registrar depois"). O contrato continua na versão 1: capacidade nova e opcional é mudança
+menor, e os jogos que não a declaram não a recebem.
+
+- `retomada`: `estado()` ('conta' | 'convidado' | 'sem-onde'), `link()` (o link de uso único,
+  com prazo, para continuar em outro aparelho, ou null), `revogar()` e `levarParaConta()`. O
+  jogo nunca vê segredo nem código; o código vai no fragmento da URL.
+- `progresso`: só o texto do motivo muda, de "Sem conta, disponivel() é false" para "Sem onde
+  guardar, disponivel() é false" (decisão 7 do goal104): o host do RoqueOS passa a guardar o
+  herói do convidado da RagnaRoque no servidor. A forma não muda.
+- Host falso: `retomada` em memória, link `.invalid` com `#retomar=`, `disparar('retomada',
+{ estado })` e `retomada: false` para tirar. Host de desenvolvimento: link null e
+  `levarParaConta` 'indisponivel' (sem servidor não há outro aparelho).
+- `yarn mutantes` ganhou três mutantes: código na query, forma sem `levarParaConta` e o motivo
+  do `progresso` de volta a "sem conta".
+
 ## 0.5.1 (18/10/2026)
 
 O CLI `jogo` recusa o que não conhece (Goal 102). Duas vezes um agente rodou

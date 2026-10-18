@@ -41,7 +41,8 @@ function anotada(capacidade, nome, anotar) {
  *   recusar?: ((pedido: { operacao: string, codigo: string, caminho: string,
  *     uid: string | null, valor?: unknown }) => boolean) | null,
  *   progresso?: false | { salvo?: object | null, falharLeitura?: boolean,
- *     falharEscrita?: boolean, disponivel?: boolean } }} [opcoes]
+ *     falharEscrita?: boolean, disponivel?: boolean }, retomada?: boolean }} [opcoes]
+ *   `retomada: false` tira a capacidade.
  *   `sala: false` e `salaAoVivo: false` tiram a capacidade, para o teste do
  *   jogo que joga sem ela; `convite` é o código com que a janela foi aberta
  *   (o link ou o QR), e vale para as duas salas. `recusar` faz o papel da
@@ -61,7 +62,9 @@ export function criarHostFalso({
   convite = null,
   recusar = null,
   progresso = {},
+  retomada = true,
 } = {}) {
+  const estadoDaRetomada = retomada ? { forcado: null, links: 0 } : null
   const chamadas = []
   const anotar = (capacidade, metodo, args) => chamadas.push({ capacidade, metodo, args })
   const ouvintes = { identidade: new Set(), idioma: new Set() }
@@ -151,6 +154,11 @@ export function criarHostFalso({
       if (o === 'ia') {
         if (!host.ia) throw new Error('este host falso foi criado sem ia')
         estado.iaDisponivel = Boolean(valor?.disponivel)
+        return
+      }
+      if (o === 'retomada') {
+        if (!estadoDaRetomada) throw new Error('este host falso foi criado com retomada: false')
+        estadoDaRetomada.forcado = valor?.estado ?? null
         return
       }
       if (o === 'progresso') {
@@ -277,6 +285,31 @@ export function criarHostFalso({
     /** O documento guardado agora (cópia), para o teste olhar sem passar pelo jogo. */
     host.progressoGuardado = () =>
       estadoDoProgresso.salvo === null ? null : structuredClone(estadoDoProgresso.salvo)
+  }
+
+  // A retomada em memória (0.6.0). O link é .invalid, como o da sala, e
+  // `disparar('retomada', { estado })` simula a sessão levada para outro
+  // aparelho ('sem-onde') ou a conta que apareceu ('conta').
+  if (estadoDaRetomada) {
+    const capacidade = {
+      estado: () => estadoDaRetomada.forcado ?? (estado.identidade.uid ? 'conta' : 'convidado'),
+      async link() {
+        if (capacidade.estado() !== 'convidado') return null
+        estadoDaRetomada.links += 1
+        const codigo = `codigo${estadoDaRetomada.links}`.padEnd(22, 'x')
+        return {
+          url: `https://host-falso.invalid/jogar/${jogoId}#retomar=${codigo}`,
+          expiraEm: Date.now() + 7 * 24 * 3600 * 1000,
+        }
+      },
+      async revogar() {
+        return capacidade.estado() === 'convidado'
+      },
+      async levarParaConta() {
+        return capacidade.estado() === 'convidado' ? 'aberto' : 'indisponivel'
+      },
+    }
+    host.retomada = anotada(capacidade, 'retomada', anotar)
   }
 
   /**

@@ -310,5 +310,22 @@ export function criarHostDeDesenvolvimento({
     sala,
     salaAoVivo: aoVivo.capacidade,
     progresso,
+    // A retomada aqui não leva a lugar nenhum: sem servidor não há outro
+    // aparelho. O progresso já mora no localStorage desta máquina, então o
+    // estado é 'convidado' quando ele guarda, e o jogo pode desenhar o botão;
+    // o link volta null e o jogo tem de saber mostrar "não deu".
+    retomada: {
+      estado: () => (storageDoNavegador ? 'convidado' : 'sem-onde'),
+      async link() {
+        registro.info(`[${jogoId}] retomada.link: sem servidor aqui, o link é null`)
+        return null
+      },
+      async revogar() {
+        return false
+      },
+      async levarParaConta() {
+        return 'indisponivel'
+      },
+    },
   }
 }

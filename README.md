@@ -139,7 +139,7 @@ devia.
 - Obrigatórias, que todo host entrega: `identidade`, `avisar`, `audio`, `desempenho`,
   `metricas`, `placar`, `armazenamento` e `idioma`.
 - Opcionais, que o jogo pede em `capacidades` quando não vive sem elas: `tela`, `teclado`, `ia`,
-  `sala`, `salaAoVivo` e `progresso`.
+  `sala`, `salaAoVivo`, `progresso` e `retomada`.
 - `avisar(mensagem, { tipo, fixo })`: `fixo: true` fica na tela até o jogador fechar, para o
   aviso que não pode sumir sozinho ("não consegui ler o seu mundo; nada foi gravado por cima").
 - `ia` é `{ completar, disponivel }` desde a 0.3.0: `disponivel()` diz antes da pergunta se há
