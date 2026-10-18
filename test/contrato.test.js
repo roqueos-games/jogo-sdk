@@ -104,6 +104,30 @@ describe('o contrato', () => {
     assert.equal(obrigatoria, false)
     assert.deepEqual(forma, { disponivel: FN, carregar: FN, salvar: FN })
     assert.match(porque, /null e rejeição/)
+    // 0.6.0 (decisão 7 do goal104): o motivo fala de "onde guardar", não de conta, porque o
+    // host pode guardar o save do convidado no servidor.
+    assert.match(porque, /Sem onde guardar, disponivel\(\) é false/)
+    assert.doesNotMatch(porque, /Sem conta, disponivel\(\) é false/)
+  })
+
+  test('retomada é opcional, com estado, link, revogar e levarParaConta (0.6.0)', () => {
+    const { obrigatoria, forma, porque } = CAPACIDADES.retomada
+    assert.equal(obrigatoria, false)
+    assert.ok(OPCIONAIS.includes('retomada'))
+    assert.deepEqual(forma, { estado: FN, link: FN, revogar: FN, levarParaConta: FN })
+    assert.match(porque, /fragmento da URL/)
+    assert.match(porque, /nunca vê segredo nem código/)
+  })
+
+  test('os dois hosts do SDK cumprem o contrato com a retomada exigida, e sem ela reprova', () => {
+    const dev = criarHostDeDesenvolvimento({ jogoId: 'x', janela: janelaFalsa() })
+    assert.deepEqual(verificarHost(criarHostFalso(), { exigidas: ['retomada'] }).problemas, [])
+    assert.deepEqual(verificarHost(dev, { exigidas: ['retomada'] }).problemas, [])
+    const sem = criarHostFalso({ retomada: false })
+    assert.deepEqual(verificarHost(sem, { exigidas: ['retomada'] }).problemas, [
+      'falta a capacidade "retomada"',
+    ])
+    assert.equal(verificarHost(sem).ok, true, 'o jogo que não exige roda sem ela')
   })
 
   test('ia tem completar e disponivel, e o papel de cada mensagem é vocabulário fechado', () => {

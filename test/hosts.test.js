@@ -222,4 +222,36 @@ describe('host falso', () => {
   test('disparar algo que não existe é erro do teste', () => {
     assert.throws(() => criarHostFalso().disparar('clima', 'chuva'), /não conhece/)
   })
+
+  test('retomada: convidado ganha link com o código no fragmento; conta e sem-onde não', async () => {
+    const host = criarHostFalso({ jogoId: 'runa' })
+    assert.equal(host.retomada.estado(), 'convidado')
+    const link = await host.retomada.link()
+    const url = new URL(link.url)
+    assert.equal(url.search, '', 'o código nunca vai na query')
+    assert.match(url.hash, /^#retomar=[A-Za-z0-9_-]{22}$/)
+    assert.ok(link.expiraEm > Date.now())
+    assert.equal(await host.retomada.levarParaConta(), 'aberto')
+    host.disparar('identidade', { uid: 'u1', nome: 'Ana' })
+    assert.equal(host.retomada.estado(), 'conta')
+    assert.equal(await host.retomada.link(), null)
+    host.disparar('retomada', { estado: 'sem-onde' })
+    assert.equal(await host.retomada.link(), null)
+    assert.equal(await host.retomada.levarParaConta(), 'indisponivel')
+    assert.equal(host.contar('retomada', 'link'), 3)
+  })
+})
+
+describe('host de desenvolvimento: retomada', () => {
+  test('sem servidor, o link é null e levar para a conta é indisponível', async () => {
+    const dev = criarHostDeDesenvolvimento({
+      jogoId: 'runa',
+      janela: janelaFalsa(),
+      registro: { info() {}, debug() {}, warn() {} },
+    })
+    assert.equal(dev.retomada.estado(), 'convidado')
+    assert.equal(await dev.retomada.link(), null)
+    assert.equal(await dev.retomada.revogar(), false)
+    assert.equal(await dev.retomada.levarParaConta(), 'indisponivel')
+  })
 })

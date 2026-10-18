@@ -21,6 +21,7 @@ import {
   salasEmMemoria,
 } from './sala.js'
 import { criarSalaAoVivo } from './salaAoVivo.js'
+import { criarPresenca } from './presenca.js'
 
 /** Envolve cada função de uma capacidade para anotar a chamada antes de repassar. */
 function anotada(capacidade, nome, anotar) {
@@ -41,7 +42,8 @@ function anotada(capacidade, nome, anotar) {
  *   recusar?: ((pedido: { operacao: string, codigo: string, caminho: string,
  *     uid: string | null, valor?: unknown }) => boolean) | null,
  *   progresso?: false | { salvo?: object | null, falharLeitura?: boolean,
- *     falharEscrita?: boolean, disponivel?: boolean } }} [opcoes]
+ *     falharEscrita?: boolean, disponivel?: boolean }, retomada?: boolean }} [opcoes]
+ *   `retomada: false` tira a capacidade.
  *   `sala: false` e `salaAoVivo: false` tiram a capacidade, para o teste do
  *   jogo que joga sem ela; `convite` é o código com que a janela foi aberta
  *   (o link ou o QR), e vale para as duas salas. `recusar` faz o papel da
@@ -61,7 +63,11 @@ export function criarHostFalso({
   convite = null,
   recusar = null,
   progresso = {},
+  retomada = true,
+  presenca = true,
 } = {}) {
+  const estadoDaRetomada = retomada ? { forcado: null, links: 0 } : null
+  let presencaDeFora = null
   const chamadas = []
   const anotar = (capacidade, metodo, args) => chamadas.push({ capacidade, metodo, args })
   const ouvintes = { identidade: new Set(), idioma: new Set() }
@@ -151,6 +157,16 @@ export function criarHostFalso({
       if (o === 'ia') {
         if (!host.ia) throw new Error('este host falso foi criado sem ia')
         estado.iaDisponivel = Boolean(valor?.disponivel)
+        return
+      }
+      if (o === 'presenca') {
+        if (!presencaDeFora) throw new Error('este host falso foi criado com presenca: false')
+        if (valor?.t === 'conexao') return presencaDeFora.definirConexao(valor.conectado)
+        return presencaDeFora.receber(valor)
+      }
+      if (o === 'retomada') {
+        if (!estadoDaRetomada) throw new Error('este host falso foi criado com retomada: false')
+        estadoDaRetomada.forcado = valor?.estado ?? null
         return
       }
       if (o === 'progresso') {
@@ -277,6 +293,48 @@ export function criarHostFalso({
     /** O documento guardado agora (cópia), para o teste olhar sem passar pelo jogo. */
     host.progressoGuardado = () =>
       estadoDoProgresso.salvo === null ? null : structuredClone(estadoDoProgresso.salvo)
+  }
+
+  // A presença em memória (0.7.0). Os outros jogadores entram pelo
+  // `disparar('presenca', { t: 'entrou' | 'pose' | 'mapa' | 'saiu', id, ... })`,
+  // e `host.presencaEnviada` é o que o jogo mandou, para o teste conferir.
+  if (presenca) {
+    host.presencaEnviada = []
+    const p = criarPresenca({
+      eu: () => ({
+        id: estado.identidade.uid ?? 'convidado-1',
+        nome: estado.identidade.nome ?? 'Viajante 1000',
+        conta: Boolean(estado.identidade.uid),
+      }),
+      enviar: (m) => host.presencaEnviada.push(m),
+    })
+    host.presenca = anotada(p.capacidade, 'presenca', anotar)
+    presencaDeFora = p
+  }
+
+  // A retomada em memória (0.6.0). O link é .invalid, como o da sala, e
+  // `disparar('retomada', { estado })` simula a sessão levada para outro
+  // aparelho ('sem-onde') ou a conta que apareceu ('conta').
+  if (estadoDaRetomada) {
+    const capacidade = {
+      estado: () => estadoDaRetomada.forcado ?? (estado.identidade.uid ? 'conta' : 'convidado'),
+      async link() {
+        if (capacidade.estado() !== 'convidado') return null
+        estadoDaRetomada.links += 1
+        const codigo = `codigo${estadoDaRetomada.links}`.padEnd(22, 'x')
+        return {
+          url: `https://host-falso.invalid/jogar/${jogoId}#retomar=${codigo}`,
+          expiraEm: Date.now() + 7 * 24 * 3600 * 1000,
+        }
+      },
+      async revogar() {
+        return capacidade.estado() === 'convidado'
+      },
+      async levarParaConta() {
+        return capacidade.estado() === 'convidado' ? 'aberto' : 'indisponivel'
+      },
+    }
+    host.retomada = anotada(capacidade, 'retomada', anotar)
   }
 
   /**
