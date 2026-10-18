@@ -6,28 +6,34 @@
 //   jogo olho <rótulo> [--url=…] [--roteiro=…] [--segundos=5]
 //                                         fotos e quadro em desktop, celular e TV (0.4.0)
 //
+// `--usage`, `--help` ou `-h` em qualquer nível mostram a ajuda e saem 0 sem rodar nada.
+// Opção que o comando não declara sai 2 antes de qualquer escrita (0.5.1): as opções de cada
+// comando estão em src/cli.js.
+//
 // Sai 1 se qualquer seção do check tiver problema. Sem "aviso": problema que não
 // reprova é problema que ninguém conserta.
 
 import { resolve } from 'node:path'
-import { verificarRepo } from '../src/verificacao.js'
-
-const USO = `uso: jogo check [pasta] [--sdk] [--json]
-     jogo assets importar [--apenas=id,id]
-     jogo olho <rótulo> [--url=http://…] [--roteiro=olho/roteiro.mjs] [--segundos=5]`
-
-const args = process.argv.slice(2)
-const [comando, ...resto] = args
-const flags = new Set(resto.filter((a) => a.startsWith('--')))
-const valor = (nome) => resto.find((a) => a.startsWith(`--${nome}=`))?.slice(nome.length + 3)
-const posicionais = resto.filter((a) => !a.startsWith('--'))
+import { lerArgumentos } from '../src/cli.js'
 
 async function main() {
+  const pedido = lerArgumentos(process.argv.slice(2))
+  if (pedido.ajuda) {
+    console.log(pedido.ajuda)
+    return 0
+  }
+  if (pedido.erro) {
+    console.error(pedido.erro)
+    return 2
+  }
+  const { comando, opcoes, posicionais } = pedido
+
   if (comando === 'check') {
+    const { verificarRepo } = await import('../src/verificacao.js')
     const pasta = resolve(posicionais[0] ?? '.')
-    const secoes = verificarRepo(pasta, { sdk: flags.has('--sdk') })
+    const secoes = verificarRepo(pasta, { sdk: Boolean(opcoes.sdk) })
     const total = secoes.reduce((n, s) => n + s.problemas.length, 0)
-    if (flags.has('--json')) {
+    if (opcoes.json) {
       console.log(JSON.stringify({ ok: total === 0, pasta, secoes }))
     } else {
       for (const { secao, problemas } of secoes) {
@@ -39,9 +45,9 @@ async function main() {
     return total ? 1 : 0
   }
 
-  if (comando === 'assets' && posicionais[0] === 'importar') {
+  if (comando === 'assets importar') {
     const { importar } = await import('../src/importador.js')
-    const apenas = valor('apenas')?.split(',')
+    const apenas = opcoes.apenas?.split(',').map((id) => id.trim())
     const resumo = await importar(resolve('.'), { apenas })
     for (const r of resumo) {
       console.log(
@@ -58,9 +64,9 @@ async function main() {
     const { olhar } = await import('../src/olho.js')
     const r = await olhar(resolve('.'), {
       rotulo: posicionais[0],
-      url: valor('url'),
-      roteiro: valor('roteiro'),
-      segundos: Number(valor('segundos') ?? 5),
+      url: opcoes.url,
+      roteiro: opcoes.roteiro,
+      segundos: Number(opcoes.segundos ?? 5),
     })
     for (const c of r.cenarios) {
       const q = c.quadro
@@ -74,7 +80,8 @@ async function main() {
     return r.cenarios.some((c) => c.erros.length) ? 1 : 0
   }
 
-  console.error(USO)
+  // Comando declarado em src/cli.js sem ramo aqui: erro do SDK, não do usuário.
+  console.error(`jogo: ${comando} está declarado mas não tem implementação`)
   return 2
 }
 

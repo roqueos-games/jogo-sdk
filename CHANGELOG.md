@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.1 (18/10/2026)
+
+O CLI `jogo` recusa o que não conhece (Goal 102). Duas vezes um agente rodou
+`yarn -s jogo assets importar --usage` achando que veria a ajuda; o CLI ignorava qualquer flag
+que não lia, e o importador reimportou o catálogo inteiro por cima dos arquivos. O contrato
+continua na versão 1: nada aqui muda capacidade, host ou o que o `jogo check` confere.
+
+- `src/cli.js`: cada comando (`check`, `assets importar`, `olho`) declara as opções que aceita,
+  e o parse roda inteiro antes de qualquer comando tocar no disco. Opção desconhecida, opção de
+  valor sem `=valor` (o `--apenas palmeira` com espaço), opção repetida, bandeira com valor,
+  argumento solto a mais, comando ou subcomando desconhecido: sai 2 dizendo qual e com o uso.
+- `--usage`, `--help` e `-h` em qualquer nível mostram a ajuda daquele nível e saem 0 sem rodar
+  nada; a ajuda ganha de qualquer outro argumento da linha.
+- `jogo assets importar --apenas=…` com um id que não está em `assets/importar.json` sai 1 antes
+  de escrever, em vez de importar zero itens e dizer "ok".
+- `jogo assets importar` sem `--apenas` continua importando a lista inteira.
+- `test/cli.test.js` roda o CLI num catálogo falso de verdade (um GLB que o importador sabe ler)
+  e confere, por SHA-256 e mtime, que nem a opção desconhecida nem o `--usage` escrevem nada.
+  `yarn mutantes` ganhou cinco mutantes do CLI e do `--apenas`.
+
 ## 0.4.0 (16/10/2026)
 
 O kit para trocar desenho feito na hora por modelo 3D de mercado (Goal 80, pedido do fundador

@@ -319,6 +319,24 @@ teste do kit de modelos) e as ferramentas do importador, para o teste de ponta a
    próprio SDK).
 4. Para conferir um repo de jogo: `node bin/jogo.mjs check ../caminho-do-jogo`.
 
+### O CLI `jogo`
+
+```
+jogo check [pasta] [--sdk] [--json]
+jogo assets importar [--apenas=id,id]
+jogo olho <rótulo> [--url=http://…] [--roteiro=olho/roteiro.mjs] [--segundos=5]
+```
+
+- `--usage`, `--help` ou `-h` em qualquer nível (`jogo --usage`, `jogo assets --usage`,
+  `jogo assets importar --usage`) mostram a ajuda daquele nível e saem 0, sem rodar nada e sem
+  tocar no disco. A ajuda ganha de qualquer outro argumento da linha.
+- Cada comando aceita só as opções que declara em [`src/cli.js`](src/cli.js). Opção desconhecida,
+  `--opcao` de valor sem o `=valor`, opção repetida ou argumento solto a mais saem 2 com a
+  mensagem de qual foi e o uso, antes de qualquer escrita (desde 0.5.1).
+- `jogo assets importar` sem `--apenas` importa a lista inteira de `assets/importar.json` e
+  sobrescreve as saídas; é o uso documentado, e só roda depois que o parse validou a linha.
+  `--apenas` com um id que não está na lista sai 1 sem escrever.
+
 Num repo de jogo, o SDK entra como dependência git pinada por tag:
 
 ```json
@@ -354,6 +372,7 @@ src/
   e2e.js              o modo de teste de ponta a ponta
   verificacao.js      o que o jogo check confere
   modelos.js          o kit de modelos: perfil, renderizador, ambiente, carregador (0.4.0)
+  cli.js              as opções de cada comando do CLI e o parse que recusa o resto (0.5.1)
   importador.js       jogo assets importar (0.4.0)
   olho.js             jogo olho (0.4.0)
   host/               desenvolvimento, falso, o espaço de chaves do armazenamento, e o que
@@ -406,6 +425,9 @@ in the browser, and in tests.
   `jogo assets importar` (third-party model to compressed GLB, original pinned by SHA-256) and
   `jogo olho` (screenshots and frame timing on desktop, phone and TV, through the game's own
   script).
+- Since 0.5.1 the `jogo` CLI rejects any option a command does not declare (exit 2, before
+  touching the disk), and `--usage`, `--help` or `-h` at any level print that level's help and
+  exit 0 without running anything.
 - Optional capabilities: `tela` (fullscreen), `teclado` (keyboard focus), `ia` (AI completion:
   `disponivel()` says up front whether a model is available, `completar({ sistema, mensagens:
 [{ papel, texto }] })` returns text or `null`) and, since 0.2.0, `sala`: a two-player online
