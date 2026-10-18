@@ -218,6 +218,30 @@ export const CAPACIDADES = Object.freeze({
     porque:
       'O jogo salvo do jogador, na conta dele: o herói, o mundo. Um documento por jogo, que o host já nasce sabendo qual é. "Não tem save" e "não consegui ler o save" são respostas diferentes (null e rejeição), porque confundir as duas grava um mundo vazio por cima de meses de construção. Sem onde guardar, disponivel() é false e nada é gravado. O host decide onde guarda: na conta, ou, para o jogo que ele escolher, no servidor como save de convidado (0.6.0).',
   },
+  // A presença (desde 0.7.0), função por função:
+  //
+  //   entrar({ mapa, pose, aparencia })  → Promise<{ eu, instancia } |
+  //       { erro: 'cheio' | 'indisponivel' }>. `mapa` é o id da região
+  //       ('greenwood'); `pose` é { x, y, f, m } (casas, direção em radianos,
+  //       andando); `aparencia` é { cls, modelo, cor }. Quem joga entra pelo
+  //       host: conta com o nome da conta, convidado como "Viajante NNNN".
+  //   pose(p)  manda onde está. O host deixa sair até 10 por segundo e
+  //       descarta o excesso (devolve false).
+  //   observar(fn)  → parar(). fn([{ id, nome, aparencia, pose, conta }]),
+  //       só quem está no mesmo mapa, sem o próprio jogador; logo depois e a
+  //       cada mudança. Nunca dentro da própria chamada.
+  //   trocarDeMapa(mapa, pose)  passou por um portal.
+  //   sair()  deixa de aparecer para os outros.
+  //   conectado(fn)  → parar(). fn(true | false) logo depois e a cada troca.
+  //
+  //   Mapa fora do formato (a-z, 0-9, hífen) e pose sem { x, y } numéricos
+  //   são TypeError na hora: erro de quem porta, que aparece no teste.
+  presenca: {
+    obrigatoria: false,
+    forma: { entrar: FN, pose: FN, observar: FN, trocarDeMapa: FN, sair: FN, conectado: FN },
+    porque:
+      'Ver os outros jogadores no mesmo mapa, andando, com nome. Só posição e aparência, nada do save. Quem leva é o host, por um servidor do jogo que desconfia do que chega (pose fora do mapa, salto impossível, excesso de poses); o jogo nunca vê token nem endereço, e sem servidor a lista vem vazia, sem quebrar o jogo.',
+  },
   // A retomada (desde 0.6.0), função por função:
   //
   //   estado()  → 'conta' | 'convidado' | 'sem-onde'. Onde o progresso desta

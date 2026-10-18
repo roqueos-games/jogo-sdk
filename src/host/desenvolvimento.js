@@ -18,6 +18,7 @@ import { armazenamentoDoJogo, armazenamentoEmMemoria, chaveDoJogo } from './arma
 import { capacidadeProgresso, erroIndisponivel } from './progresso.js'
 import { capacidadeSala, criarOuvintes, gerarCodigo } from './sala.js'
 import { criarSalaAoVivo } from './salaAoVivo.js'
+import { criarPresenca } from './presenca.js'
 
 // A leitura de teste também serve à sala ao vivo: o WebKit só entrega o
 // evento `storage` à aba que já leu o localStorage (medido no WebKit 26.4,
@@ -205,6 +206,22 @@ export function criarHostDeDesenvolvimento({
     },
   })
 
+  // A presença entre abas (0.7.0): cada aba é um jogador (o mesmo da sala), e o
+  // BroadcastChannel leva a pose para as outras, sem servidor. Sem BroadcastChannel
+  // a lista vem vazia, como no RoqueOS sem servidor.
+  const canal =
+    typeof janela.BroadcastChannel === 'function'
+      ? new janela.BroadcastChannel(chaveDoJogo(jogoId, 'presenca'))
+      : null
+  const presenca = criarPresenca({
+    eu: () => ({ id: jogador.uid, nome: jogador.nome, conta: false }),
+    enviar: (m) => canal?.postMessage(m),
+  })
+  if (canal) canal.onmessage = (e) => presenca.receber(e.data)
+  if (typeof janela.addEventListener === 'function') {
+    janela.addEventListener('pagehide', () => presenca.capacidade.sair())
+  }
+
   let contexto = null
   const audio = {
     contexto() {
@@ -310,6 +327,7 @@ export function criarHostDeDesenvolvimento({
     sala,
     salaAoVivo: aoVivo.capacidade,
     progresso,
+    presenca: presenca.capacidade,
     // A retomada aqui não leva a lugar nenhum: sem servidor não há outro
     // aparelho. O progresso já mora no localStorage desta máquina, então o
     // estado é 'convidado' quando ele guarda, e o jogo pode desenhar o botão;

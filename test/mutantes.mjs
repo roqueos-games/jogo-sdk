@@ -14,7 +14,23 @@ const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url))
 const IMPORTADOR = fileURLToPath(new URL('../src/importador.js', import.meta.url))
 const CONTRATO = fileURLToPath(new URL('../src/contrato.js', import.meta.url))
 const FALSO = fileURLToPath(new URL('../src/host/falso.js', import.meta.url))
+const PRESENCA = fileURLToPath(new URL('../src/host/presenca.js', import.meta.url))
 const MUTANTES = [
+  [
+    'presenca: sem o teto de poses por segundo',
+    (t) => t.replace('if (++contagem > POSES_POR_SEGUNDO) return false', '++contagem'),
+    PRESENCA,
+  ],
+  [
+    'presenca: mostra quem está em outro mapa',
+    (t) => t.replace('.filter((o) => o.mapa === dentro.mapa)', ''),
+    PRESENCA,
+  ],
+  [
+    'presenca: observar entrega dentro da própria chamada',
+    (t) => t.replace('proximo(() => ouvintes.has(fn) && fn(lista()))', 'fn(lista())'),
+    PRESENCA,
+  ],
   [
     'retomada: o host falso põe o código na query',
     (t) => t.replace('/jogar/${jogoId}#retomar=${codigo}', '/jogar/${jogoId}?retomar=${codigo}'),
@@ -161,7 +177,7 @@ const MUTANTES = [
 ]
 
 const originais = new Map(
-  [ALVO, MODELOS, GRAFICO, SOM, CARGA, CLI, IMPORTADOR, CONTRATO, FALSO].map((a) => [
+  [ALVO, MODELOS, GRAFICO, SOM, CARGA, CLI, IMPORTADOR, CONTRATO, FALSO, PRESENCA].map((a) => [
     a,
     readFileSync(a, 'utf8'),
   ]),
@@ -170,6 +186,7 @@ const SUITE = new Map([
   [CLI, 'test/cli.test.js'],
   [CONTRATO, 'test/contrato.test.js'],
   [FALSO, 'test/hosts.test.js'],
+  [PRESENCA, 'test/presenca.test.js'],
   [IMPORTADOR, 'test/cli.test.js'],
   [ALVO, 'test/verificacao.test.js'],
   [MODELOS, 'test/cenario.test.js'],

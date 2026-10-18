@@ -21,6 +21,7 @@ import {
   salasEmMemoria,
 } from './sala.js'
 import { criarSalaAoVivo } from './salaAoVivo.js'
+import { criarPresenca } from './presenca.js'
 
 /** Envolve cada função de uma capacidade para anotar a chamada antes de repassar. */
 function anotada(capacidade, nome, anotar) {
@@ -63,8 +64,10 @@ export function criarHostFalso({
   recusar = null,
   progresso = {},
   retomada = true,
+  presenca = true,
 } = {}) {
   const estadoDaRetomada = retomada ? { forcado: null, links: 0 } : null
+  let presencaDeFora = null
   const chamadas = []
   const anotar = (capacidade, metodo, args) => chamadas.push({ capacidade, metodo, args })
   const ouvintes = { identidade: new Set(), idioma: new Set() }
@@ -155,6 +158,11 @@ export function criarHostFalso({
         if (!host.ia) throw new Error('este host falso foi criado sem ia')
         estado.iaDisponivel = Boolean(valor?.disponivel)
         return
+      }
+      if (o === 'presenca') {
+        if (!presencaDeFora) throw new Error('este host falso foi criado com presenca: false')
+        if (valor?.t === 'conexao') return presencaDeFora.definirConexao(valor.conectado)
+        return presencaDeFora.receber(valor)
       }
       if (o === 'retomada') {
         if (!estadoDaRetomada) throw new Error('este host falso foi criado com retomada: false')
@@ -285,6 +293,23 @@ export function criarHostFalso({
     /** O documento guardado agora (cópia), para o teste olhar sem passar pelo jogo. */
     host.progressoGuardado = () =>
       estadoDoProgresso.salvo === null ? null : structuredClone(estadoDoProgresso.salvo)
+  }
+
+  // A presença em memória (0.7.0). Os outros jogadores entram pelo
+  // `disparar('presenca', { t: 'entrou' | 'pose' | 'mapa' | 'saiu', id, ... })`,
+  // e `host.presencaEnviada` é o que o jogo mandou, para o teste conferir.
+  if (presenca) {
+    host.presencaEnviada = []
+    const p = criarPresenca({
+      eu: () => ({
+        id: estado.identidade.uid ?? 'convidado-1',
+        nome: estado.identidade.nome ?? 'Viajante 1000',
+        conta: Boolean(estado.identidade.uid),
+      }),
+      enviar: (m) => host.presencaEnviada.push(m),
+    })
+    host.presenca = anotada(p.capacidade, 'presenca', anotar)
+    presencaDeFora = p
   }
 
   // A retomada em memória (0.6.0). O link é .invalid, como o da sala, e

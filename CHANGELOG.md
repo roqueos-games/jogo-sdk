@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.0 (18/10/2026)
+
+A capacidade opcional `presenca` (goal104 G2, pedido do founder: "quando entrar no mapa o ideal
+seria mostrar todos os jogadores on-line"). O contrato continua na versão 1.
+
+- `presenca`: `entrar({ mapa, pose, aparencia })`, `pose(p)` (o host deixa sair até 10 por
+  segundo), `observar(fn)` (só quem está no mesmo mapa, sem o próprio jogador), `trocarDeMapa`,
+  `sair` e `conectado`. Mapa fora do formato e pose sem números são TypeError na hora.
+- `@roqueos-games/jogo-sdk/presenca`: as regras (`conferirMapa`, `conferirPose`,
+  `conferirAparencia`, `POSES_POR_SEGUNDO`) e o motor em memória, que o host do RoqueOS usa antes
+  da rede.
+- Host falso: presença em memória, `disparar('presenca', { t: 'entrou' | 'pose' | 'mapa' |
+'saiu' | 'conexao', ... })`, `host.presencaEnviada` e `presenca: false` para tirar. Host de
+  desenvolvimento: presença entre abas pelo BroadcastChannel, sem servidor.
+- `yarn mutantes` ganhou três mutantes: sem o teto de 10 poses/s, sem o filtro de mapa e o
+  `observar` entregando dentro da própria chamada.
+
 ## 0.6.0 (18/10/2026)
 
 A capacidade opcional `retomada` (goal104, pedido do founder: "mesmo sendo convidado sem conta
