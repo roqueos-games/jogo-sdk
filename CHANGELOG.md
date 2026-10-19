@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.7.4 (em preparação, 19/10/2026)
+
+- `etapa(nome, promessa, { opcional: true, aguardar: true })` espera a resolução ou rejeição antes de concluir a carga estrita, sem transformar falha do áudio em falha visual. O preparo aguardado participa do progresso e de `etapaAtual()`.
+- Usa o mesmo teto global: depois do selo, se todas as obrigatórias terminaram com sucesso e só faltam opcionais aguardadas, o teto conclui. Recurso obrigatório pendente continua erro de prazo; falha obrigatória, registro inválido e cancelamento continuam fatais. Nenhum temporizador novo ou tentativa de abortar downloads.
+- `opcional: true` sem `aguardar` continua não bloqueante; `aguardar` sem `opcional` não tolera falha obrigatória. Carga legada, modelos073, contrato do host1, áudio/samples e dependências permanecem inalterados. Candidata local; publicação e integração dependem de revisão e gates.
+
+## 0.7.3 (19/10/2026)
+
+- `criarCenario.liberar()` opcional abandona a carga antes da transferência de recursos: geometria, materiais, mapas e HDR são liberados uma única vez, inclusive quando compartilhados ou recebidos depois do encerramento. Tabelas e cache são limpos; cenário encerrado não aceita nova carga, clone, material ou ambiente.
+- Carga pendente rejeita com código seguro `CENARIO_ENCERRADO` ao terminar, sem repopular o cenário. O método não aborta a rede. Clones compartilham recursos; o chamador só libera antes da transferência, ou coordena explicitamente todos os donos. Mapas clonados e PMREM já aplicados continuam sob responsabilidade do jogo.
+- Sem chamada explícita, comportamento padrão, `faltaram`, `criarCarregador.esquecer()` e contrato do host 1 permanecem iguais. Sem dependências novas.
+
+## 0.7.2 (19/10/2026)
+
+- Opt-in `estrito` em criarCarregador/criarCenario detecta falha de textura interna que o GLTFLoader absorve. Manager privado por modelo, erro seguro, limpeza do resultado incompleto e retry sem cache de falha. Modelos concorrentes não se contaminam.
+- O cenário mantém o resultado `faltaram`; quem chama decide a UI de recuperação. Sem opt-in, contratos e comportamento anteriores permanecem iguais. Sem novas dependências ou alterações na carga071.
+
+## 0.7.1 (19/10/2026)
+
+Carga estrita opcional para revelar a cena só depois de suas tarefas obrigatórias. O contrato
+do host continua na versão 1 e o comportamento padrão de `criarCarga` permanece igual.
+
+- `criarCarga({ estrita: true })`: exige `selar()` ao terminar de registrar as etapas;
+  resolve `pronto` somente com todas as obrigatórias bem-sucedidas. Falha, teto ou liberação
+  rejeitam a promessa original com código e nomes lógicos das etapas, sem a mensagem/URL do asset.
+- `etapa(nome, promessa, { opcional: true })` não bloqueia a prontidão nem participa do
+  progresso obrigatório. O chamador decide explicitamente o que pode faltar; nenhum áudio
+  passa a ser opcional automaticamente. Etapa após o selo é erro de registro.
+- Estado estrito acrescenta `sucesso`, `erro` e `selada`; falha/cancelamento nunca inventam
+  100%. Callbacks do LoadingManager, timer e ouvintes são limpos; rejeição pode ser observada
+  depois sem gerar unhandledRejection. Nova tentativa usa uma nova instância.
+- Nenhum jogo foi migrado automaticamente. Uma promessa cumprida não verifica por si só a
+  integridade do modelo: o produtor precisa rejeitar a etapa se algum recurso requerido faltar.
+
 ## 0.7.0 (18/10/2026)
 
 A capacidade opcional `presenca` (goal104 G2, pedido do founder: "quando entrar no mapa o ideal

@@ -5,6 +5,26 @@ import assert from 'node:assert/strict'
 import * as THREE from 'three'
 import { PERFIS, criarCenario } from '../src/modelos.js'
 
+function contarDescarte(...recursos) {
+  const contagem = new Map()
+  for (const recurso of recursos) {
+    contagem.set(recurso, 0)
+    recurso.addEventListener('dispose', () => contagem.set(recurso, contagem.get(recurso) + 1))
+  }
+  return () => {
+    for (const n of contagem.values()) assert.equal(n, 1)
+  }
+}
+const encerrado = (erro) => erro.codigo === 'CENARIO_ENCERRADO' && !erro.message.includes('https:')
+function promessaControlada() {
+  let ok, falhar
+  const promessa = new Promise((resolve, reject) => {
+    ok = resolve
+    falhar = reject
+  })
+  return { promessa, ok, falhar }
+}
+
 function loaders() {
   const urls = []
   class GLTFLoader {
@@ -91,5 +111,151 @@ describe('criarCenario', () => {
     c.vestir(outro, 'madeira', 1, 1)
     assert.deepEqual([mat.map.repeat.x, outro.map.repeat.x], [3, 1], 'repetição não vaza')
     assert.equal(c.vestir(new THREE.MeshStandardMaterial(), 'nada'), false)
+  })
+})
+
+describe('abandono explícito antes da transferência', () => {
+  test('descarta originais compartilhados, PBR e HDR uma vez; faltaram não abandona sozinho', async () => {
+    const mapa = new THREE.Texture(),
+      geometria = new THREE.BoxGeometry()
+    const material = new THREE.MeshStandardMaterial({ map: mapa, normalMap: mapa })
+    const raiz = new THREE.Group()
+    raiz.add(new THREE.Mesh(geometria, material), new THREE.Mesh(geometria, [material, material]))
+    let baixas = 0,
+      descartes = 0
+    class GLTFLoader {
+      async loadAsync(url) {
+        baixas++
+        if (url.includes('ruim')) throw new Error('arquivo ausente')
+        return { scene: raiz, animations: [] }
+      }
+    }
+    class TextureLoader {
+      async loadAsync() {
+        return mapa
+      }
+    }
+    class RGBELoader {
+      async loadAsync() {
+        return mapa
+      }
+    }
+    mapa.addEventListener('dispose', () => descartes++)
+    const conferir = contarDescarte(mapa, geometria, material)
+    const c = criarCenario({ THREE, GLTFLoader, TextureLoader, RGBELoader })
+    const resultado = await c.carregar({
+      modelos: { a: 'bom', b: 'bom', ruim: 'ruim' },
+      texturas: ['piso'],
+      ceu: 'ceu',
+    })
+    assert.deepEqual(resultado.faltaram, ['ruim'])
+    assert.equal(baixas, 2, 'o modelo compartilhado ainda usa o cache original')
+    assert.equal(descartes, 0, 'faltaram não libera os irmãos bons')
+    assert.equal(c.modelo('a').children[0].children[0].geometry, geometria)
+    c.liberar()
+    c.liberar()
+    conferir()
+    assert.equal(c.tem('a'), false)
+    assert.equal(c.tem('piso'), false)
+    assert.equal(c.ceu, null)
+    assert.deepEqual(c.faltaram, [])
+    await assert.rejects(c.carregar({ modelos: { novo: 'https://asset/segredo' } }), encerrado)
+    assert.equal(baixas, 2, 'cenário encerrado não inicia outro download')
+    assert.throws(() => c.modelo('a'), encerrado)
+    const alvo = new THREE.MeshStandardMaterial()
+    assert.throws(() => c.vestir(alvo, 'piso'), encerrado)
+    assert.equal(alvo.map, null)
+    assert.throws(() => c.aplicarCeu({}, new THREE.Scene()), encerrado)
+  })
+
+  test('descarta chegadas anteriores e tardias sem repopular tabelas ou duplicar recursos', async () => {
+    const a = promessaControlada(),
+      b = promessaControlada(),
+      hdr = promessaControlada()
+    const cor = promessaControlada(),
+      normal = promessaControlada(),
+      arm = promessaControlada()
+    const mapa = new THREE.Texture(),
+      tardio = new THREE.Texture(),
+      ceu = new THREE.Texture()
+    const geometria = new THREE.BoxGeometry(),
+      outra = new THREE.SphereGeometry()
+    const material = new THREE.MeshStandardMaterial({ map: mapa })
+    const matTardio = new THREE.MeshStandardMaterial({ map: mapa, normalMap: tardio })
+    const antes = new THREE.Group(),
+      depois = new THREE.Group()
+    antes.add(new THREE.Mesh(geometria, material))
+    depois.add(new THREE.Mesh(geometria, material), new THREE.Mesh(outra, matTardio))
+    class GLTFLoader {
+      loadAsync(url) {
+        return url === 'a' ? a.promessa : b.promessa
+      }
+    }
+    class TextureLoader {
+      loadAsync(url) {
+        return url.includes('/cor.')
+          ? cor.promessa
+          : url.includes('/normal.')
+            ? normal.promessa
+            : arm.promessa
+      }
+    }
+    class RGBELoader {
+      loadAsync() {
+        return hdr.promessa
+      }
+    }
+    const conferir = contarDescarte(mapa, tardio, ceu, geometria, outra, material, matTardio)
+    const c = criarCenario({ THREE, GLTFLoader, TextureLoader, RGBELoader })
+    const carga = c.carregar({ modelos: { a: 'a', b: 'b' }, texturas: ['piso'], ceu: 'h' })
+    const rejeitada = assert.rejects(carga, encerrado)
+    a.ok({ scene: antes })
+    cor.ok(mapa)
+    for (let i = 0; i < 4; i++) await Promise.resolve()
+    assert.equal(c.tem('a'), true)
+    c.liberar()
+    b.ok({ scene: depois })
+    normal.ok(tardio)
+    arm.ok(mapa)
+    hdr.ok(ceu)
+    await rejeitada
+    c.liberar()
+    conferir()
+    assert.equal(c.tem('a'), false)
+    assert.equal(c.tem('b'), false)
+    assert.equal(c.tem('piso'), false)
+    assert.equal(c.ceu, null)
+    assert.deepEqual(c.faltaram, [])
+  })
+
+  test('também libera ids sobrescritos e não registra falha tardia em cenário encerrado', async () => {
+    const registros = []
+    class TextureLoader {
+      async loadAsync() {
+        const t = new THREE.Texture()
+        registros.push(t)
+        return t
+      }
+    }
+    const c = criarCenario({ THREE, ...loaders(), TextureLoader })
+    await c.carregar({ texturas: ['piso'] })
+    await c.carregar({ texturas: ['piso'] })
+    assert.equal(registros.length, 6)
+    const conferir = contarDescarte(...registros)
+    c.liberar()
+    conferir()
+    const pendente = promessaControlada()
+    class GLTFLoader {
+      loadAsync() {
+        return pendente.promessa
+      }
+    }
+    const outro = criarCenario({ THREE, GLTFLoader })
+    const promessa = outro.carregar({ modelos: { a: 'a' } })
+    const rejeitada = assert.rejects(promessa, encerrado)
+    outro.liberar()
+    pendente.falhar(new Error('https://segredo/interno'))
+    await rejeitada
+    assert.deepEqual(outro.faltaram, [])
   })
 })
