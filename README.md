@@ -178,6 +178,25 @@ motor.parar() // fade e solta os nós
 Cada golpe sai do grafo de áudio quando acaba (o panner HRTF é o nó mais caro). Sem pacote ou sem
 contexto, `tocar` devolve false e o jogo toca a síntese de reserva (`blip`).
 
+### Modelos com dependências completas (0.7.2)
+
+O GLTFLoader pode cumprir `loadAsync` mesmo se uma textura interna falhar. O modo opcional
+`criarCenario({ THREE, GLTFLoader, ..., estrito: true })` detecta esse erro com um
+LoadingManager privado por modelo e registra o id em `faltaram`. O produtor precisa rejeitar
+sua etapa quando `faltaram.length` for diferente de zero; o cenário não muda automaticamente
+para um erro de UI.
+
+Quem usa `criarCarregador` diretamente entrega também `LoadingManager: THREE.LoadingManager` e
+`estrito: true`. `modelo`/`preparar` rejeitam com `codigo: 'MODELO_INCOMPLETO'`, sem URL ou causa
+original no erro. A falha é retirada do cache para permitir nova tentativa; modelos concorrentes
+não compartilham o sinal de erro. Um manager externo pode resolver URLs; o modo estrito não
+modifica seus callbacks nem os do DefaultLoadingManager. Progresso global de arquivos não é
+prometido por esse manager privado, e a tarefa do modelo continua sendo a fonte de conclusão.
+
+Sem `estrito: true`, permanece a política anterior. Esse controle confirma o resultado do
+loader e de suas dependências; o jogo ainda verifica o conteúdo esperado e prepara o primeiro
+quadro completo antes de revelar o canvas. Não prova pixels, desempenho ou GPU física.
+
 ### Carga estrita opcional (0.7.1)
 
 O modo padrão acima preserva a política anterior: a etapa termina mesmo se falhar, e o teto

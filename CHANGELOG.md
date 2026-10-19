@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2 (19/10/2026)
+
+- Opt-in `estrito` em criarCarregador/criarCenario detecta falha de textura interna que o GLTFLoader absorve. Manager privado por modelo, erro seguro, limpeza do resultado incompleto e retry sem cache de falha. Modelos concorrentes não se contaminam.
+- O cenário mantém o resultado `faltaram`; quem chama decide a UI de recuperação. Sem opt-in, contratos e comportamento anteriores permanecem iguais. Sem novas dependências ou alterações na carga071.
+
 ## 0.7.1 (19/10/2026)
 
 Carga estrita opcional para revelar a cena só depois de suas tarefas obrigatórias. O contrato

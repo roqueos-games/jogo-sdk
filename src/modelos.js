@@ -121,10 +121,32 @@ export function criarCarregador({
   perfil = PERFIS.alto,
   aoProgresso,
   manager,
+  LoadingManager,
+  estrito = false,
 } = {}) {
   if (!GLTFLoader) throw new Error('criarCarregador: entregue o GLTFLoader do three')
-  const loader = new GLTFLoader(manager)
-  if (MeshoptDecoder) loader.setMeshoptDecoder(MeshoptDecoder)
+  if (estrito && typeof LoadingManager !== 'function')
+    throw new Error('Modo estrito precisa do LoadingManager do three.')
+  const loader = estrito ? null : new GLTFLoader(manager)
+  if (MeshoptDecoder && loader) loader.setMeshoptDecoder(MeshoptDecoder)
+  async function carregarCompleto(url) {
+    // O GLTFLoader pode absorver falhas de imagem e ainda cumprir loadAsync.
+    // Um gerente por modelo detecta isso sem afetar o vizinho ou o manager global.
+    const gerente = new LoadingManager()
+    if (manager?.resolveURL) gerente.setURLModifier((u) => manager.resolveURL(u))
+    let incompleto = false
+    gerente.onError = () => {
+      incompleto = true
+    }
+    const exclusivo = new GLTFLoader(gerente)
+    if (MeshoptDecoder) exclusivo.setMeshoptDecoder(MeshoptDecoder)
+    const gltf = await exclusivo.loadAsync(url)
+    if (incompleto) {
+      liberar(gltf?.scene)
+      throw new Error('Dependência visual ausente.')
+    }
+    return gltf
+  }
   const cache = new Map()
   let pedidos = 0
   let prontos = 0
@@ -135,7 +157,7 @@ export function criarCarregador({
       pedidos++
       avisar()
       const url = base ? `${base.replace(/\/$/, '')}/${caminho.replace(/^\//, '')}` : caminho
-      const promessa = loader.loadAsync(url).then(
+      const promessa = (estrito ? carregarCompleto(url) : loader.loadAsync(url)).then(
         (gltf) => {
           prontos++
           avisar()
@@ -143,6 +165,11 @@ export function criarCarregador({
         },
         (erro) => {
           cache.delete(caminho)
+          if (estrito) {
+            const seguro = new Error('Não foi possível carregar o modelo completo.')
+            seguro.codigo = 'MODELO_INCOMPLETO'
+            throw seguro
+          }
           throw new Error(`não carregou ${url}: ${erro?.message ?? erro}`)
         },
       )
@@ -219,8 +246,16 @@ export function criarCenario({
   TextureLoader = THREE.TextureLoader,
   base = '',
   perfil = PERFIS.alto,
+  estrito = false,
 } = {}) {
-  const carregador = criarCarregador({ GLTFLoader, MeshoptDecoder, base, perfil })
+  const carregador = criarCarregador({
+    GLTFLoader,
+    MeshoptDecoder,
+    base,
+    perfil,
+    estrito,
+    LoadingManager: THREE.LoadingManager,
+  })
   const pasta = base ? `${base.replace(/\/$/, '')}/` : ''
   const modelos = {}
   const texturas = {}
