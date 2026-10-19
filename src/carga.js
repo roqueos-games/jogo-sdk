@@ -147,14 +147,19 @@ function criarCargaEstrita({ manager, teto, relogio }) {
   pronto.catch(() => {})
 
   const necessarias = () => [...etapas].filter(([, e]) => !e.opcional)
-  const pendentes = () =>
+  const acompanhadas = () => [...etapas].filter(([, e]) => !e.opcional || e.aguardar)
+  const obrigatoriasPendentes = () =>
     necessarias()
+      .filter(([, e]) => !e.feita)
+      .map(([nome]) => nome)
+  const pendentes = () =>
+    acompanhadas()
       .filter(([, e]) => !e.feita)
       .map(([nome]) => nome)
   const progresso = () => {
     if (sucesso) return 1
     if (fechada) return visto
-    const lista = necessarias()
+    const lista = acompanhadas()
     const p = lista.length
       ? calcularProgresso({
           feitas: lista.filter(([, e]) => e.feita).length,
@@ -219,7 +224,12 @@ function criarCargaEstrita({ manager, teto, relogio }) {
       else delete manager[chave]
     }
   }
-  const tempo = relogio.setTimeout(() => terminar(falha('tempo-esgotado', pendentes())), teto)
+  const tempo = relogio.setTimeout(() => {
+    const faltam = obrigatoriasPendentes()
+    // A espera opcional conserva o teto global tolerante; nenhum recurso necessário é liberado.
+    if (selada && !faltam.length) terminar()
+    else terminar(falha('tempo-esgotado', faltam))
+  }, teto)
   function terminar(motivo = null, notificar = true) {
     if (fechada) return
     progresso()
@@ -244,7 +254,7 @@ function criarCargaEstrita({ manager, teto, relogio }) {
 
   return {
     pronto,
-    etapa(nome, promessa, { opcional = false } = {}) {
+    etapa(nome, promessa, { opcional = false, aguardar = false } = {}) {
       // O chamador pode já ter iniciado uma tarefa ao passar a promessa. Consumir a
       // rejeição dela também quando o registro é inválido evita erro solto no unmount.
       const tarefa = Promise.resolve(promessa)
@@ -254,18 +264,28 @@ function criarCargaEstrita({ manager, teto, relogio }) {
       if (typeof nome !== 'string' || !/^[a-z][a-z0-9_-]{0,31}$/i.test(nome))
         recusar('etapa-invalida', [])
       if (etapas.has(nome)) recusar('etapa-duplicada', [nome])
-      const etapa = { opcional: opcional === true, feita: false }
+      const etapa = {
+        opcional: opcional === true,
+        aguardar: opcional === true && aguardar === true,
+        feita: false,
+      }
       etapas.set(nome, etapa)
       avisar()
       tarefa.then(
         () => {
-          if (fechada || etapa.opcional) return
+          if (fechada || (etapa.opcional && !etapa.aguardar)) return
           etapa.feita = true
           avisar()
           conferirFim()
         },
         () => {
-          if (!fechada && !etapa.opcional) terminar(falha('etapa-falhou', [nome]))
+          if (fechada) return
+          if (!etapa.opcional) terminar(falha('etapa-falhou', [nome]))
+          else if (etapa.aguardar) {
+            etapa.feita = true
+            avisar()
+            conferirFim()
+          }
         },
       )
     },

@@ -241,8 +241,8 @@ const cenarioPronto = montarCenarioCompleto().then((r) => {
 })
 carga.etapa('cenario', cenarioPronto)
 carga.etapa('quadro', cenarioPronto.then(prepararPrimeiroQuadroCompleto))
-// Somente se o produto permitir ausência de áudio. Não torna os modelos opcionais.
-carga.etapa('sons', audio.preparar(), { opcional: true })
+// Espera o preparo; falha de áudio continua tolerada. Não torna os modelos opcionais.
+carga.etapa('sons', audio.preparar(), { opcional: true, aguardar: true })
 carga.aoMudar(({ progresso, etapa, erro }) => desenharEntrada(progresso, etapa, erro?.codigo))
 carga.selar()
 try {
@@ -268,10 +268,18 @@ encoberto até o primeiro quadro completo; este helper sozinho não muda o desen
 - `selar()` impede qualquer registro posterior, inclusive de opcional. Todas as obrigatórias
   precisam cumprir suas promessas; não existe sucesso antecipado de uma primeira etapa rápida.
   Esquecer o selo leva ao erro de teto. Selar sem obrigatórias confirma explicitamente que não
-  há tarefas necessárias; opcionais pendentes não impedem esse sucesso.
-- Opcionais não bloqueiam, não participam da porcentagem obrigatória e podem falhar depois.
+  há tarefas necessárias; opcionais sem `aguardar` pendentes não impedem esse sucesso.
+- Opcionais sem `aguardar` não bloqueiam, não participam da porcentagem e podem falhar depois.
   Suas rejeições são consumidas; o produtor observa a promessa original se quiser diagnosticar
   ou oferecer outra UI. Assets visíveis necessários não podem ser classificados como opcionais.
+- Desde 0.7.4, `{ opcional: true, aguardar: true }` espera o settlement: tanto resolver (inclusive
+  false) como rejeitar conclui essa etapa. Ela participa do progresso/etapa atual e impede pronto
+  antes do preparo terminar. Não exige gravações disponíveis, desbloqueio por gesto ou som audível.
+  O teto global já existente conclui com sucesso se o registro foi selado e todas as obrigatórias
+  terminaram com sucesso, mesmo com opcionais aguardadas ainda pendentes. Se faltar obrigatória,
+  o mesmo teto rejeita com `tempo-esgotado` e nomes das obrigatórias; esquecer o selo continua erro.
+  Nenhum prazo por etapa é criado. As opções precisam ser boolean true; `aguardar` sem `opcional`
+  não converte falha obrigatória em tolerada. Sem o novo opt-in, os contratos anteriores continuam.
 - `pronto` mantém uma única decisão: resolve sem valor em sucesso, rejeita em falha. Uma reação
   interna evita rejeição global não observada, mas `await carga.pronto` continua a rejeitar.
   A falha não é convertida em sucesso pelo helper. Nova tentativa cria outra carga; não reutiliza

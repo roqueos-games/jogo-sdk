@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.4 (em preparação, 19/10/2026)
+
+- `etapa(nome, promessa, { opcional: true, aguardar: true })` espera a resolução ou rejeição antes de concluir a carga estrita, sem transformar falha do áudio em falha visual. O preparo aguardado participa do progresso e de `etapaAtual()`.
+- Usa o mesmo teto global: depois do selo, se todas as obrigatórias terminaram com sucesso e só faltam opcionais aguardadas, o teto conclui. Recurso obrigatório pendente continua erro de prazo; falha obrigatória, registro inválido e cancelamento continuam fatais. Nenhum temporizador novo ou tentativa de abortar downloads.
+- `opcional: true` sem `aguardar` continua não bloqueante; `aguardar` sem `opcional` não tolera falha obrigatória. Carga legada, modelos073, contrato do host1, áudio/samples e dependências permanecem inalterados. Candidata local; publicação e integração dependem de revisão e gates.
+
 ## 0.7.3 (19/10/2026)
 
 - `criarCenario.liberar()` opcional abandona a carga antes da transferência de recursos: geometria, materiais, mapas e HDR são liberados uma única vez, inclusive quando compartilhados ou recebidos depois do encerramento. Tabelas e cache são limpos; cenário encerrado não aceita nova carga, clone, material ou ambiente.

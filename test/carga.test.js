@@ -106,6 +106,117 @@ const codigo = (valor, etapas) => (erro) => {
   return true
 }
 
+describe('áudio opcional aguardado na carga estrita', () => {
+  for (const resultado of ['resolver', 'rejeitar']) {
+    it(`aguarda settlement antes de revelar e tolera ${resultado}`, async () => {
+      const r = relogioControlado()
+      const c = criarCarga({ estrita: true, relogio: r })
+      const som = adiada()
+      c.etapa('mesa', Promise.resolve())
+      c.etapa('sons', som.p, { opcional: true, aguardar: true })
+      c.selar()
+      await vez()
+      assert.equal(c.fechada(), false)
+      assert.equal(c.etapaAtual(), 'sons')
+      assert.ok(c.progresso() < 1)
+      som[resultado](resultado === 'rejeitar' ? new Error('som indisponível') : false)
+      await c.pronto
+      assert.equal(c.sucesso(), true)
+      assert.equal(c.progresso(), 1)
+      assert.equal(r.fila.size, 0)
+    })
+  }
+
+  it('o teto global encerra com sucesso quando somente o áudio opcional ficou pendente', async () => {
+    const r = relogioControlado()
+    const c = criarCarga({ estrita: true, relogio: r })
+    const som = adiada()
+    c.etapa('mesa', Promise.resolve())
+    c.etapa('sons', som.p, { opcional: true, aguardar: true })
+    c.selar()
+    await vez()
+    assert.equal(c.fechada(), false)
+    r.vencer()
+    await c.pronto
+    assert.equal(c.sucesso(), true)
+    assert.equal(c.progresso(), 1)
+    som.rejeitar(new Error('resposta posterior ao teto'))
+    await vez()
+    assert.equal(c.sucesso(), true)
+  })
+
+  it('o teto continua erro se também falta recurso obrigatório', async () => {
+    const r = relogioControlado()
+    const c = criarCarga({ estrita: true, relogio: r })
+    c.etapa('mesa', new Promise(() => {}))
+    c.etapa('sons', new Promise(() => {}), { opcional: true, aguardar: true })
+    c.selar()
+    r.vencer()
+    await assert.rejects(c.pronto, codigo('tempo-esgotado', ['mesa']))
+    assert.ok(c.progresso() < 1)
+  })
+
+  it('áudio aguardado não autoriza teto de sucesso sem selo', async () => {
+    const r = relogioControlado()
+    const c = criarCarga({ estrita: true, relogio: r })
+    c.etapa('sons', new Promise(() => {}), { opcional: true, aguardar: true })
+    r.vencer()
+    await assert.rejects(c.pronto, codigo('tempo-esgotado', []))
+  })
+
+  it('falha obrigatória permanece fatal mesmo com áudio aguardado', async () => {
+    const c = criarCarga({ estrita: true, relogio: relogioControlado() })
+    c.etapa('mesa', Promise.reject(new Error('modelo indisponível')))
+    c.etapa('sons', new Promise(() => {}), { opcional: true, aguardar: true })
+    c.selar()
+    await assert.rejects(c.pronto, codigo('etapa-falhou', ['mesa']))
+  })
+
+  it('cancelamento e chegada tardia são isolados de outra carga no mesmo manager', async () => {
+    const r = relogioControlado()
+    const original = () => {}
+    const manager = { onProgress: original }
+    const a = criarCarga({ estrita: true, relogio: r, manager })
+    const b = criarCarga({ estrita: true, relogio: r, manager })
+    const somA = adiada(),
+      somB = adiada()
+    a.etapa('sons', somA.p, { opcional: true, aguardar: true })
+    b.etapa('sons', somB.p, { opcional: true, aguardar: true })
+    a.selar()
+    b.selar()
+    assert.equal(a.fechada(), false)
+    assert.equal(b.fechada(), false)
+    a.liberar()
+    await assert.rejects(a.pronto, codigo('cancelada', ['sons']))
+    somA.rejeitar(new Error('tardio'))
+    await vez()
+    assert.equal(b.fechada(), false)
+    somB.resolver()
+    await b.pronto
+    assert.equal(b.sucesso(), true)
+    assert.equal(manager.onProgress, original)
+    assert.equal(r.fila.size, 0)
+  })
+
+  it('aguardar sem opcional não transforma falha obrigatória em tolerada', async () => {
+    const c = criarCarga({ estrita: true, relogio: relogioControlado() })
+    c.etapa('mesa', Promise.reject(new Error('modelo')), { aguardar: true })
+    c.selar()
+    await assert.rejects(c.pronto, codigo('etapa-falhou', ['mesa']))
+  })
+
+  it('a carga legada mantém settlement tolerante mesmo recebendo as novas opções', async () => {
+    const c = criarCarga({ relogio: relogioControlado() })
+    const som = adiada()
+    c.etapa('sons', som.p, { opcional: true, aguardar: true })
+    await vez()
+    assert.equal(c.fechada(), false)
+    som.rejeitar(new Error('som'))
+    await c.pronto
+    assert.equal(c.progresso(), 1)
+  })
+})
+
 describe('a carga estrita opcional', () => {
   it('rejeita uma etapa necessária falha em vez de anunciar sucesso', async () => {
     const c = criarCarga({ estrita: true, relogio: relogioControlado() })
