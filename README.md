@@ -178,6 +178,65 @@ motor.parar() // fade e solta os nós
 Cada golpe sai do grafo de áudio quando acaba (o panner HRTF é o nó mais caro). Sem pacote ou sem
 contexto, `tocar` devolve false e o jogo toca a síntese de reserva (`blip`).
 
+### Carga estrita opcional (0.7.1)
+
+O modo padrão acima preserva a política anterior: a etapa termina mesmo se falhar, e o teto
+libera a entrada. Para cenas que só podem aparecer completas, use `estrita: true` e encerre
+explicitamente o registro com `selar()`:
+
+```js
+const carga = criarCarga({ estrita: true, manager: THREE.DefaultLoadingManager, teto: 30000 })
+const cenarioPronto = montarCenarioCompleto().then((r) => {
+  if (r.faltaram.length) throw new Error('cenário incompleto')
+})
+carga.etapa('cenario', cenarioPronto)
+carga.etapa('quadro', cenarioPronto.then(prepararPrimeiroQuadroCompleto))
+// Somente se o produto permitir ausência de áudio. Não torna os modelos opcionais.
+carga.etapa('sons', audio.preparar(), { opcional: true })
+carga.aoMudar(({ progresso, etapa, erro }) => desenharEntrada(progresso, etapa, erro?.codigo))
+carga.selar()
+try {
+  await carga.pronto
+  revelarCena()
+} catch (erro) {
+  mostrarFalhaComNovaTentativa(erro.codigo)
+}
+// Ao desmontar, inclusive enquanto a entrada ainda espera:
+// carga.liberar()
+```
+
+`montarCenarioCompleto`, `prepararPrimeiroQuadroCompleto` e as funções de UI são do produtor,
+não exports deste SDK. A carga estrita espera as promessas; não inspeciona malhas, não compila
+shaders e não valida imagens. O produtor rejeita a etapa quando faltar um recurso obrigatório,
+inclusive quando um loader devolver `{ faltaram }`, false ou null em vez de lançar. Promessa
+cumprida, inclusive sem valor, significa que o produtor confirmou sucesso. O palco permanece
+encoberto até o primeiro quadro completo; este helper sozinho não muda o desenho do jogo.
+
+- Registre cada nome uma vez, antes do selo. Nomes são rótulos lógicos ASCII de 1 a 32 caracteres
+  (`mesa`, `mapas_pbr`, `primeiro-quadro`), começando por letra, depois letras/números/`_`/`-`.
+  Nunca entregue URL, caminho ou credencial como nome. Rótulo inválido é recusado sem ecoar a entrada.
+- `selar()` impede qualquer registro posterior, inclusive de opcional. Todas as obrigatórias
+  precisam cumprir suas promessas; não existe sucesso antecipado de uma primeira etapa rápida.
+  Esquecer o selo leva ao erro de teto. Selar sem obrigatórias confirma explicitamente que não
+  há tarefas necessárias; opcionais pendentes não impedem esse sucesso.
+- Opcionais não bloqueiam, não participam da porcentagem obrigatória e podem falhar depois.
+  Suas rejeições são consumidas; o produtor observa a promessa original se quiser diagnosticar
+  ou oferecer outra UI. Assets visíveis necessários não podem ser classificados como opcionais.
+- `pronto` mantém uma única decisão: resolve sem valor em sucesso, rejeita em falha. Uma reação
+  interna evita rejeição global não observada, mas `await carga.pronto` continua a rejeitar.
+  A falha não é convertida em sucesso pelo helper. Nova tentativa cria outra carga; não reutiliza
+  a antiga. A liberação não aborta downloads do produtor: ele cancela/descarta suas tarefas.
+- `fechada()` significa estado terminal, inclusive falha/cancelamento. Use `sucesso()` e
+  `erro()` ou aguarde `pronto` para decidir a revelação. O estado de `aoMudar` conserva
+  `progresso`, `etapa`, `fechada` e acrescenta `sucesso`, `erro`, `selada`. O progresso é
+  monotônico e fica abaixo de 1 até sucesso real; o LoadingManager não conclui etapas sozinho.
+- Erros têm mensagem genérica, `.codigo` e `.etapas` (nomes lógicos), sem causa original ou URL.
+  Códigos: `etapa-falhou`, `tempo-esgotado`, `cancelada`, `registro-fechado`, `etapa-invalida`,
+  `etapa-duplicada`. A etapa inválida/duplicada ou registrada após o selo lança na chamada e
+  reprova uma carga ainda pendente; uma carga já terminal mantém sua decisão original.
+- `liberar()` cancela uma carga pendente, rejeita `pronto` com `cancelada`, restaura callbacks,
+  limpa timer e ouvintes, sem notificar a UI já desmontada. Resoluções tardias são ignoradas.
+
 ### Partida online: a capacidade `sala` (desde 0.2.0)
 
 Dois jogadores, um tabuleiro: um cria a sala e recebe um código de cinco letras e um link (o

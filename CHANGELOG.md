@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.1 (19/10/2026)
+
+Carga estrita opcional para revelar a cena só depois de suas tarefas obrigatórias. O contrato
+do host continua na versão 1 e o comportamento padrão de `criarCarga` permanece igual.
+
+- `criarCarga({ estrita: true })`: exige `selar()` ao terminar de registrar as etapas;
+  resolve `pronto` somente com todas as obrigatórias bem-sucedidas. Falha, teto ou liberação
+  rejeitam a promessa original com código e nomes lógicos das etapas, sem a mensagem/URL do asset.
+- `etapa(nome, promessa, { opcional: true })` não bloqueia a prontidão nem participa do
+  progresso obrigatório. O chamador decide explicitamente o que pode faltar; nenhum áudio
+  passa a ser opcional automaticamente. Etapa após o selo é erro de registro.
+- Estado estrito acrescenta `sucesso`, `erro` e `selada`; falha/cancelamento nunca inventam
+  100%. Callbacks do LoadingManager, timer e ouvintes são limpos; rejeição pode ser observada
+  depois sem gerar unhandledRejection. Nova tentativa usa uma nova instância.
+- Nenhum jogo foi migrado automaticamente. Uma promessa cumprida não verifica por si só a
+  integridade do modelo: o produtor precisa rejeitar a etapa se algum recurso requerido faltar.
+
 ## 0.7.0 (18/10/2026)
 
 A capacidade opcional `presenca` (goal104 G2, pedido do founder: "quando entrar no mapa o ideal
