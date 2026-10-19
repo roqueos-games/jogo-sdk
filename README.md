@@ -32,13 +32,21 @@ explícito. Os horários são epochms; `eu.prog` já inclui XP concedida. O clie
 concessão uma vez, salva seu identificador junto ao progresso e só depois chama
 `confirmarRecompensa(id)`. Cair não autoriza combate/ganhos solo como se fossem online.
 
-A ficha `{heroiId,classId,prog,equipment,pocoes?}` tem até 3800 bytes e contém apenas o
+A ficha `{heroiId,classId,prog,equipment,pocoes?,condicoes?}` tem até 3800 bytes e contém apenas o
 necessário para o servidor validar/importar o herói e derivar atributos. As funções puras em
 `@roqueos-games/jogo-sdk/mundo` conferem os formatos de transporte; não substituem validação de
 equipamento, alcance, recarga, recurso e dano no servidor. O host autentica primeiro e envia a
 ficha em um segundo quadro, mantendo a credencial fora de URL e do jogo. Os hosts locais não
 anunciam um mundo autoritativo que não possuem; podem omitir a capacidade. Jogos antigos e
 hosts que só implementam presença continuam válidos no contrato v1.
+
+`condicoes` informa carga e postura para aplicar as regras legadas de peso/regeneração.
+As ações `pessoal {ficha,xp,pocoesDelta?,operacaoId}` preservam a progressão dos serviços
+legados: o ID da operação fica salvo antes de enviar e impede repetição após reconectar.
+Isso mantém explicitamente a confiança anterior no progresso pessoal; não certifica preços,
+inventário ou missões como uma economia antifraude. HP, dano e recompensa de combate não
+entram nessa atualização. A cura da fonte é uma intenção separada, validada pela proximidade
+no servidor, e nenhuma atualização da ficha cura ou reinicia recargas.
 
 ```mermaid
 flowchart LR

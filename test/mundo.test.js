@@ -75,3 +75,28 @@ test('intenção é fechada: cliente não manda dano ou identidade, e ficha usa 
     assert.throws(() => conferirAcaoDoMundo(acao), TypeError)
   }
 })
+
+test('compatibilidade pessoal não transporta vida, e usa ID idempotente independente do cursor', () => {
+  const f = { ...ficha(), condicoes: { carga: 'pesado', sentado: true } }
+  assert.deepEqual(conferirFichaDoMundo(f), f)
+  assert.deepEqual(conferirAcaoDoMundo({ tipo: 'fonte' }), { tipo: 'fonte' })
+  const a = {
+    tipo: 'pessoal',
+    ficha: f,
+    operacaoId: 'compra-123',
+    xp: 5,
+    pocoesDelta: { 'tonico-vida-1': 1 },
+  }
+  assert.deepEqual(conferirAcaoDoMundo(a), a)
+  for (const ruim of [
+    { ...a, hp: 999 },
+    { ...a, operacaoId: '' },
+    { ...a, operacaoId: '__proto__' },
+    { ...a, operacaoId: 'constructor' },
+    { ...a, operacaoId: 'prototype' },
+    { ...a, xp: -1 },
+    { tipo: 'condicoes', carga: 'leve', sentado: 'sim' },
+    { tipo: 'fonte', hp: 999 },
+  ])
+    assert.throws(() => conferirAcaoDoMundo(ruim), TypeError)
+})

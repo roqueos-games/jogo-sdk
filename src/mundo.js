@@ -4,7 +4,8 @@ export const VERSAO_DO_MUNDO = 1
 export const MAX_FICHA_DO_MUNDO = 3800
 
 const palavra = /^[a-zA-Z0-9_-]{1,80}$/
-const palavraValida = (v) => typeof v === 'string' && palavra.test(v)
+const palavraValida = (v) =>
+  typeof v === 'string' && palavra.test(v) && !['__proto__', 'constructor', 'prototype'].includes(v)
 const objeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 const tamanho = (texto) => new TextEncoder().encode(texto).length
 
@@ -39,12 +40,19 @@ export function conferirFichaDoMundo(ficha) {
     !palavraValida(f.classId) ||
     !objeto(f.prog) ||
     !objeto(f.equipment) ||
-    (f.pocoes !== undefined && !objeto(f.pocoes))
+    (f.pocoes !== undefined && !objeto(f.pocoes)) ||
+    (f.condicoes !== undefined &&
+      (!objeto(f.condicoes) ||
+        !['leve', 'pesado', 'sobrecarga'].includes(f.condicoes.carga) ||
+        typeof f.condicoes.sentado !== 'boolean' ||
+        Object.keys(f.condicoes).some((k) => !['carga', 'sentado'].includes(k))))
   ) {
     throw new TypeError('mundo: ficha inválida')
   }
   if (
-    Object.keys(f).some((k) => !['heroiId', 'classId', 'prog', 'equipment', 'pocoes'].includes(k))
+    Object.keys(f).some(
+      (k) => !['heroiId', 'classId', 'prog', 'equipment', 'pocoes', 'condicoes'].includes(k),
+    )
   )
     throw new TypeError('mundo: campo de ficha inválido')
   return f
@@ -57,6 +65,9 @@ const CAMPOS = Object.freeze({
   pocao: ['pocao'],
   reviver: [],
   ficha: ['ficha'],
+  condicoes: ['carga', 'sentado'],
+  pessoal: ['ficha', 'xp', 'pocoesDelta', 'operacaoId'],
+  fonte: [],
 })
 
 export function conferirAcaoDoMundo(intent) {
@@ -87,6 +98,23 @@ export function conferirAcaoDoMundo(intent) {
     if (Object.hasOwn(intent, k) && !Number.isFinite(intent[k]))
       throw new TypeError('mundo: posição inválida')
   const c = intent
-  if (c.tipo === 'ficha') c.ficha = conferirFichaDoMundo(c.ficha)
+  if (c.tipo === 'ficha' || c.tipo === 'pessoal') c.ficha = conferirFichaDoMundo(c.ficha)
+  if (
+    c.tipo === 'condicoes' &&
+    (!['leve', 'pesado', 'sobrecarga'].includes(c.carga) || typeof c.sentado !== 'boolean')
+  )
+    throw new TypeError('mundo: condições inválidas')
+  if (c.tipo === 'pessoal') {
+    if (!palavraValida(c.operacaoId) || !Number.isSafeInteger(c.xp) || c.xp < 0)
+      throw new TypeError('mundo: operação pessoal inválida')
+    if (
+      c.pocoesDelta !== undefined &&
+      (!objeto(c.pocoesDelta) ||
+        Object.entries(c.pocoesDelta).some(
+          ([k, v]) => !palavraValida(k) || !Number.isSafeInteger(v),
+        ))
+    )
+      throw new TypeError('mundo: estoque pessoal inválido')
+  }
   return c
 }
