@@ -261,37 +261,76 @@ export function criarCenario({
   const texturas = {}
   const faltaram = []
   let ceu = null
+  let encerrado = false
+  const recursos = new Set()
+  const descartados = new WeakSet()
+  const erroEncerrado = () => {
+    const erro = new Error('Cenário encerrado.')
+    erro.codigo = 'CENARIO_ENCERRADO'
+    return erro
+  }
+  const conferirAberto = () => {
+    if (encerrado) throw erroEncerrado()
+  }
+  const descartar = (recurso) => {
+    if (!recurso || descartados.has(recurso)) return
+    descartados.add(recurso)
+    recurso.dispose?.()
+  }
+  const registrar = (recurso) => {
+    if (!recurso) return
+    if (encerrado) descartar(recurso)
+    else recursos.add(recurso)
+  }
+  const registrarModelo = (raiz) =>
+    raiz?.traverse?.((o) => {
+      registrar(o.geometry)
+      const materiais = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []
+      for (const material of materiais) {
+        for (const valor of Object.values(material)) if (valor?.isTexture) registrar(valor)
+        registrar(material)
+      }
+    })
 
   async function carregar({ modelos: pedidos = {}, texturas: tx = [], ceu: hdr } = {}) {
+    conferirAberto()
     await Promise.all([
       ...Object.entries(pedidos).map(async ([id, fonte]) => {
         try {
-          modelos[id] = await carregador.modelo(fonte)
+          const modelo = await carregador.modelo(fonte)
+          // O clone integral compartilha os recursos com o original no cache.
+          registrarModelo(modelo.cena)
+          if (!encerrado) modelos[id] = modelo
         } catch {
-          faltaram.push(id)
+          if (!encerrado) faltaram.push(id)
         }
       }),
       ...tx.flatMap((id) =>
         ['cor', 'normal', 'arm'].map(async (canal) => {
           try {
             const t = await new TextureLoader().loadAsync(`${pasta}texturas/${id}/${canal}.webp`)
+            registrar(t)
+            if (encerrado) return
             t.wrapS = t.wrapT = THREE.RepeatWrapping
             if (canal === 'cor') t.colorSpace = THREE.SRGBColorSpace
             texturas[`${id}.${canal}`] = t
           } catch {
-            faltaram.push(`${id}.${canal}`)
+            if (!encerrado) faltaram.push(`${id}.${canal}`)
           }
         }),
       ),
       (async () => {
         if (!hdr || !RGBELoader) return
         try {
-          ceu = await new RGBELoader().loadAsync(pasta + caminhoDoPerfil(hdr, perfil))
+          const textura = await new RGBELoader().loadAsync(pasta + caminhoDoPerfil(hdr, perfil))
+          registrar(textura)
+          if (!encerrado) ceu = textura
         } catch {
-          faltaram.push('ceu')
+          if (!encerrado) faltaram.push('ceu')
         }
       })(),
     ])
+    conferirAberto()
     return { faltaram: [...faltaram] }
   }
 
@@ -300,6 +339,7 @@ export function criarCenario({
    * ou o maior lado com `porLado`. Cada pedido é um clone: o jogo pode espalhar vários.
    */
   function modelo(id, medida, { porLado = false, sombra = true } = {}) {
+    conferirAberto()
     const m = modelos[id]
     if (!m) return null
     const cena = m.cena.clone(true)
@@ -328,6 +368,7 @@ export function criarCenario({
 
   /** Veste um material com a textura PBR `id`, repetindo `rx` por `ry`. Devolve se vestiu. */
   function vestir(material, id, rx = 1, ry = 1) {
+    conferirAberto()
     const cor = texturas[`${id}.cor`]
     if (!cor || !material) return false
     const copia = (t) => {
@@ -355,10 +396,24 @@ export function criarCenario({
 
   /** Põe o céu no ambiente (e no fundo, desfocado, se pedido). Devolve se pôs. */
   function aplicarCeu(renderer, scene, { fundo = false, desfoque = 0.3, intensidade = 1 } = {}) {
+    conferirAberto()
     if (!ceu) return false
     acenderAmbiente({ THREE, renderer, scene, textura: ceu, fundo, intensidade })
     if (fundo && 'backgroundBlurriness' in scene) scene.backgroundBlurriness = desfoque
     return true
+  }
+
+  /** Abandona antes de transferir os recursos à cena do jogo; não é o destroy de seus clones. */
+  function liberarCenario() {
+    if (encerrado) return
+    encerrado = true
+    carregador.esquecer()
+    for (const recurso of recursos) descartar(recurso)
+    recursos.clear()
+    for (const id of Object.keys(modelos)) delete modelos[id]
+    for (const id of Object.keys(texturas)) delete texturas[id]
+    faltaram.length = 0
+    ceu = null
   }
 
   return {
@@ -366,6 +421,7 @@ export function criarCenario({
     modelo,
     vestir,
     aplicarCeu,
+    liberar: liberarCenario,
     tem: (id) => Boolean(modelos[id] || texturas[`${id}.cor`]),
     get ceu() {
       return ceu

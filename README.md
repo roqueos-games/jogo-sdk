@@ -197,6 +197,37 @@ Sem `estrito: true`, permanece a política anterior. Esse controle confirma o re
 loader e de suas dependências; o jogo ainda verifica o conteúdo esperado e prepara o primeiro
 quadro completo antes de revelar o canvas. Não prova pixels, desempenho ou GPU física.
 
+### Abandonar um cenário antes de usá-lo (0.7.3)
+
+`criarCenario` oferece `liberar()` opcional, síncrono e idempotente para abandonar uma carga
+inválida ou cancelada **antes de transferir seus recursos ao jogo**. Ele libera geometria,
+materiais, mapas e HDR já recebidos, deduplicando recursos compartilhados, limpa tabelas/cache
+e descarta também chegadas tardias. Não aborta pedidos de rede. Uma chamada `carregar` ainda
+pendente rejeita com `codigo: 'CENARIO_ENCERRADO'` ao terminar; suas chegadas não repopulam o cenário.
+
+```js
+const cenario = criarCenario({ THREE, GLTFLoader, RGBELoader, base, perfil, estrito: true })
+try {
+  const { faltaram } = await cenario.carregar(fontes)
+  if (!vivo || faltaram.length) throw new Error('Cenário indisponível.')
+} catch (erro) {
+  cenario.liberar() // antes de modelo/vestir/aplicarCeu transferirem recursos
+  throw erro
+}
+// Só agora transferir os recursos à cena válida do jogo.
+```
+
+Após `liberar`, `carregar` rejeita sem baixar; `modelo`, `vestir` e `aplicarCeu` lançam o mesmo
+erro seguro. `tem` retorna false, `ceu` fica null e `faltaram` vazio. Para repetir, crie outro cenário.
+Sem chamar esse método, a política de `faltaram` e o contrato do host continuam iguais; não há
+abandono automático por falha e `criarCarregador.esquecer()` mantém seu comportamento anterior.
+
+**Dono dos recursos:** clones de modelos compartilham geometria, materiais e mapas com os
+originais. Depois de adicionar esses clones à cena, vestir materiais ou aplicar o HDR, o jogo
+precisa coordenar o descarte de todos os donos. Não chame `cenario.liberar()` depois de uma
+transferência bem-sucedida nem o trate como destroy genérico da cena: texturas clonadas por
+`vestir` e o ambiente PMREM criado por `aplicarCeu` passam ao jogo e precisam de seu descarte próprio.
+
 ### Carga estrita opcional (0.7.1)
 
 O modo padrão acima preserva a política anterior: a etapa termina mesmo se falhar, e o teto
@@ -482,6 +513,16 @@ Veja [CONTRIBUTING.md](CONTRIBUTING.md). Licença [MIT](LICENSE).
 ---
 
 ## English
+
+Since 0.7.3, `criarCenario().liberar()` explicitly abandons an invalid/cancelled load **before
+asset ownership is transferred**. It is synchronous and idempotent, deduplicates shared model
+geometry/materials/maps and HDR, clears the cache/tables and disposes late arrivals. It does
+not abort network requests. A pending `carregar` rejects with safe code `CENARIO_ENCERRADO`
+when it finishes; later calls cannot reuse the closed instance. Create a new scenario to retry.
+Without calling this optional method, existing behavior and host contract 1 remain unchanged.
+Model clones share resources: never use this method after successful transfer as a generic
+scene destroy. The caller must coordinate ownership, including cloned texture maps and PMREM
+environments it has already applied.
 
 `jogo-sdk` is the contract between [RoqueOS](https://roqueos.com.br) and a game. A game
 exports `mount(el, host)`; the `host` provides capabilities (who the player is, where to keep
