@@ -247,6 +247,10 @@ export const CAPACIDADES = Object.freeze({
   // configurar(ficha) prepara o herói; entrar só resolve após snapshot negociado v1.
   // acao(intent) cria no HOST o id monotônico; observarEstado(fn) entrega snapshot/erro.
   // confirmarRecompensa(id) só DEPOIS de salvar a aplicação e o dedupe no progresso.
+  // Extensão opcional (0.9.0): poseComControle(pose, { v:1, seq, epoca }). O snapshot
+  // pessoal pode trazer eu.movimento com o cursor confirmado (seq0 antes do primeiro).
+  // Jogo só prevê/reconcilia se método E DTO existirem; não faz parte da forma exigida,
+  // para preservar hosts anteriores. Época nova aplica a correção canônica sem replay.
   mundo: {
     obrigatoria: false,
     forma: {

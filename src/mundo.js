@@ -32,6 +32,24 @@ function copia(v, max) {
   return c
 }
 
+/** Cursor opcional de pose. A época vem do servidor; não é relógio nem credencial. */
+export function conferirControleDoMovimento(controle, { snapshot = false } = {}) {
+  const c = copia(controle, 256)
+  if (
+    !objeto(c) ||
+    c.v !== 1 ||
+    !Number.isSafeInteger(c.seq) ||
+    c.seq < (snapshot ? 0 : 1) ||
+    typeof c.epoca !== 'string' ||
+    c.epoca.length < 1 ||
+    c.epoca.length > 100 ||
+    /[^a-zA-Z0-9:-]/.test(c.epoca) ||
+    Object.keys(c).some((k) => !['v', 'seq', 'epoca'].includes(k))
+  )
+    throw new TypeError('mundo: controle de movimento inválido')
+  return c
+}
+
 export function conferirFichaDoMundo(ficha) {
   const f = copia(ficha, MAX_FICHA_DO_MUNDO)
   if (
