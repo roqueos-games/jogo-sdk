@@ -3,6 +3,39 @@ import assert from 'node:assert/strict'
 import { conferirFichaDoMundo, conferirAcaoDoMundo } from '../src/mundo.js'
 import { CAPACIDADES, verificarHost } from '../src/index.js'
 import { criarHostFalso } from '../src/host/falso.js'
+import * as formatosDoMundo from '../src/mundo.js'
+
+test('controle de movimento separa sequência de pose de ação e não transporta campos extras', () => {
+  const conferir = formatosDoMundo.conferirControleDoMovimento
+  assert.equal(typeof conferir, 'function')
+  const original = { v: 1, seq: 7, epoca: 'm:nonce-123:2' }
+  const copia = conferir(original)
+  assert.deepEqual(copia, original)
+  copia.seq = 8
+  assert.equal(original.seq, 7)
+  assert.throws(() => conferir({ ...original, seq: 0 }), TypeError)
+  assert.deepEqual(conferir({ ...original, seq: 0 }, { snapshot: true }), {
+    ...original,
+    seq: 0,
+  })
+  for (const campo of [{ ultimaAcao: 8 }, { idToken: 'credencial' }, { x: 5 }, { dano: 9 }])
+    assert.throws(() => conferir({ ...original, ...campo }), TypeError)
+})
+
+test('controle de movimento recusa sequência e época inválidas inclusive após serialização', () => {
+  const conferir = formatosDoMundo.conferirControleDoMovimento
+  assert.equal(typeof conferir, 'function')
+  const base = { v: 1, seq: 1, epoca: 'm:nonce:1' }
+  for (const seq of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, Infinity, '1', null])
+    assert.throws(() => conferir({ ...base, seq }), TypeError)
+  for (const epoca of ['', 'a'.repeat(101), 'a\n', 'a/b', 'a b', {}, null])
+    assert.throws(() => conferir({ ...base, epoca }), TypeError)
+  for (const v of [0, 2, '1', null]) assert.throws(() => conferir({ ...base, v }), TypeError)
+  assert.throws(
+    () => conferir({ ...base, toJSON: () => ({ ...base, idToken: 'credencial' }) }),
+    TypeError,
+  )
+})
 
 const ficha = () => ({
   heroiId: 'heroi-123',

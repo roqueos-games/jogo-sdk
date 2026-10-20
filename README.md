@@ -40,6 +40,14 @@ ficha em um segundo quadro, mantendo a credencial fora de URL e do jogo. Os host
 anunciam um mundo autoritativo que não possuem; podem omitir a capacidade. Jogos antigos e
 hosts que só implementam presença continuam válidos no contrato v1.
 
+Desde 0.9.0, o método opcional `mundo.poseComControle(pose, {v:1,seq,epoca})` permite
+reconciliar caminhada prevista com o cursor `eu.movimento` do servidor. A sequência de pose
+é independente de `ultimaAcao`; o snapshot pode confirmar `seq:0` antes do primeiro envio.
+`conferirControleDoMovimento(c, {snapshot:true})` valida esse retrato; no envio, a sequência
+precisa ser positiva. A época é opaca e pertence ao servidor. Quando muda, o jogo descarta
+movimentos em voo e aplica a posição canônica. Sem método ou DTO, o jogo usa o caminho
+anterior. A forma obrigatória de `mundo` e a assinatura de `presenca.pose` não mudam.
+
 `condicoes` informa carga e postura para aplicar as regras legadas de peso/regeneração.
 As ações `pessoal {ficha,xp,pocoesDelta?,operacaoId}` preservam a progressão dos serviços
 legados: o ID da operação fica salvo antes de enviar e impede repetição após reconectar.
