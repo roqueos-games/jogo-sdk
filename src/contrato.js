@@ -242,6 +242,32 @@ export const CAPACIDADES = Object.freeze({
     porque:
       'Ver os outros jogadores no mesmo mapa, andando, com nome. Só posição e aparência, nada do save. Quem leva é o host, por um servidor do jogo que desconfia do que chega (pose fora do mapa, salto impossível, excesso de poses); o jogo nunca vê token nem endereço, e sem servidor a lista vem vazia, sem quebrar o jogo.',
   },
+  // Mundo público com combate autoritativo (0.8.0). É outra capacidade: a presença
+  // anterior não muda de forma e o desenvolvimento sem servidor não finge uma autoridade.
+  // configurar(ficha) prepara o herói; entrar só resolve após snapshot negociado v1.
+  // acao(intent) cria no HOST o id monotônico; observarEstado(fn) entrega snapshot/erro.
+  // confirmarRecompensa(id) só DEPOIS de salvar a aplicação e o dedupe no progresso.
+  // Extensão opcional (0.9.0): poseComControle(pose, { v:1, seq, epoca }). O snapshot
+  // pessoal pode trazer eu.movimento com o cursor confirmado (seq0 antes do primeiro).
+  // Jogo só prevê/reconcilia se método E DTO existirem; não faz parte da forma exigida,
+  // para preservar hosts anteriores. Época nova aplica a correção canônica sem replay.
+  mundo: {
+    obrigatoria: false,
+    forma: {
+      configurar: FN,
+      entrar: FN,
+      pose: FN,
+      observar: FN,
+      trocarDeMapa: FN,
+      sair: FN,
+      conectado: FN,
+      acao: FN,
+      observarEstado: FN,
+      confirmarRecompensa: FN,
+    },
+    porque:
+      'Compartilhar monstros, chefes, combate e renascimento em um único mundo público, com autoridade e estado durável no servidor do jogo. O host autentica sem expor endereço ou credencial, negocia a versão, limita intenções e retoma o cursor após reconexão. O jogo salva concessões idempotentes antes de confirmar; indisponibilidade não vira ganho solo. Ausência desta capacidade preserva hosts e jogos anteriores, sem fingir servidor nos hosts locais.',
+  },
   // A retomada (desde 0.6.0), função por função:
   //
   //   estado()  → 'conta' | 'convidado' | 'sem-onde'. Onde o progresso desta

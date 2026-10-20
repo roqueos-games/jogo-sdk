@@ -20,6 +20,42 @@ RoqueOS, que é fechado.
 
 ## Arquitetura
 
+### Mundo público com combate (0.8.0)
+
+`host.mundo` é opcional e separado de `presenca` e `salaAoVivo`, que preservam as formas
+anteriores. Não cria salas privadas: o servidor mantém os mesmos monstros, chefes e horários
+para todos na região. O jogo chama `configurar(ficha)` antes de `entrar({mapa,pose,aparencia})`;
+a entrada só conclui depois do primeiro snapshot autoritativo. `acao(intent)` envia intenção,
+sem dano/HP/UID calculados pelo cliente; quem atribui o cursor monotônico e autentica é o host.
+`observarEstado(fn)` entrega `{v:1,mapa,revisao,tempo,mobs,eu,eventos,recompensas}` ou erro
+explícito. Os horários são epochms; `eu.prog` já inclui XP concedida. O cliente aplica cada
+concessão uma vez, salva seu identificador junto ao progresso e só depois chama
+`confirmarRecompensa(id)`. Cair não autoriza combate/ganhos solo como se fossem online.
+
+A ficha `{heroiId,classId,prog,equipment,pocoes?,condicoes?}` tem até 3800 bytes e contém apenas o
+necessário para o servidor validar/importar o herói e derivar atributos. As funções puras em
+`@roqueos-games/jogo-sdk/mundo` conferem os formatos de transporte; não substituem validação de
+equipamento, alcance, recarga, recurso e dano no servidor. O host autentica primeiro e envia a
+ficha em um segundo quadro, mantendo a credencial fora de URL e do jogo. Os hosts locais não
+anunciam um mundo autoritativo que não possuem; podem omitir a capacidade. Jogos antigos e
+hosts que só implementam presença continuam válidos no contrato v1.
+
+Desde 0.9.0, o método opcional `mundo.poseComControle(pose, {v:1,seq,epoca})` permite
+reconciliar caminhada prevista com o cursor `eu.movimento` do servidor. A sequência de pose
+é independente de `ultimaAcao`; o snapshot pode confirmar `seq:0` antes do primeiro envio.
+`conferirControleDoMovimento(c, {snapshot:true})` valida esse retrato; no envio, a sequência
+precisa ser positiva. A época é opaca e pertence ao servidor. Quando muda, o jogo descarta
+movimentos em voo e aplica a posição canônica. Sem método ou DTO, o jogo usa o caminho
+anterior. A forma obrigatória de `mundo` e a assinatura de `presenca.pose` não mudam.
+
+`condicoes` informa carga e postura para aplicar as regras legadas de peso/regeneração.
+As ações `pessoal {ficha,xp,pocoesDelta?,operacaoId}` preservam a progressão dos serviços
+legados: o ID da operação fica salvo antes de enviar e impede repetição após reconectar.
+Isso mantém explicitamente a confiança anterior no progresso pessoal; não certifica preços,
+inventário ou missões como uma economia antifraude. HP, dano e recompensa de combate não
+entram nessa atualização. A cura da fonte é uma intenção separada, validada pela proximidade
+no servidor, e nenhuma atualização da ficha cura ou reinicia recargas.
+
 ```mermaid
 flowchart LR
   subgraph hosts[Quem monta o jogo]
