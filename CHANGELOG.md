@@ -1,5 +1,17 @@
 # Changelog
 
+## Sem versão (18/11/2026)
+
+Só documentação; nenhum código, configuração ou CI muda, e o contrato continua na versão 1.
+
+- A documentação adota o padrão da família: `docs/docs.json` declara os papéis, com o inglês
+  como principal em `docs/` e o par em português em `docs/pt-BR/`. Entram GETTING-STARTED,
+  ARCHITECTURE, INTEGRATIONS, REFERENCE, OPERATIONS, WHEN-IT-BREAKS, GLOSSARY, EXTENDING, TESTING
+  e THREAT-MODEL, cada um com o par.
+- O `README.md` passa a ser em inglês, com o par em `README.pt-BR.md`; o guia das capacidades e
+  dos kits que morava no README foi para `docs/INTEGRATIONS.md`. O `CONTRIBUTING.md` passa a ser
+  em inglês, com o par em `docs/pt-BR/CONTRIBUTING.md`.
+
 ## 0.7.0 (18/10/2026)
 
 A capacidade opcional `presenca` (goal104 G2, pedido do founder: "quando entrar no mapa o ideal
