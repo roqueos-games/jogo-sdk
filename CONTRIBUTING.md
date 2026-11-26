@@ -1,37 +1,23 @@
-# Como contribuir
+# How to contribute
 
-Obrigado por querer ajudar. Este repo é pequeno de propósito, e a régua é a mesma para
-todo mundo, inclusive para quem mantém.
+_English | [Português](docs/pt-BR/CONTRIBUTING.md)_
 
-1. Abra uma issue antes de mudar o contrato (`src/contrato.js`). Capacidade nova mexe no
-   RoqueOS e em todos os jogos, então a conversa vem antes do código.
-2. Faça o fork, crie um branch e rode `yarn install --ignore-scripts`.
-3. Toda regra nova vem com um teste que reprova sem ela. Teste que passa com e sem a mudança
-   não prova nada.
-4. Rode `yarn verificar` antes de abrir o PR. É o mesmo que o CI roda.
-5. Abra o PR explicando o porquê, não só o quê.
+Thank you for wanting to help. This repo is small on purpose, and the bar is the same for everyone, maintainers included.
 
-O código, os comentários e as mensagens de commit são em português do Brasil, que é o idioma
-canônico do projeto. Issue e PR em inglês são bem-vindos.
+1. Open an issue before changing the contract ([`src/contrato.js`](src/contrato.js)). A new capability touches RoqueOS and every game, so the conversation comes before the code.
+2. Fork, create a branch, and run `yarn install --ignore-scripts`.
+3. Every new rule comes with a test that fails without it. A test that passes with and without the change proves nothing.
+4. Run `yarn verificar` before opening the pull request. It is the same command CI runs.
+5. Open the pull request explaining the why, not only the what.
 
-Nada de script que rode sozinho no install (`preinstall`, `postinstall`, `prepare`): o
-`jogo check` reprova, e o motivo está em [`src/verificacao.js`](src/verificacao.js).
+The code, the comments and the commit messages are in Brazilian Portuguese, the project's canonical language. Issues and pull requests in English are welcome.
 
-## Conduta
+No script that runs by itself on install (`preinstall`, `postinstall`, `prepare`): `jogo check` fails it, and the reason is in [`src/verificacao.js`](src/verificacao.js).
 
-Trate os outros como gostaria de ser tratado: crítica ao código, nunca à pessoa. Assédio,
-ofensa e exposição de dado pessoal de alguém tiram a pessoa do projeto. Para reportar, use o
-contato de [SECURITY.md](SECURITY.md).
+Where each kind of change goes, and which test proves it, is in [docs/EXTENDING.md](docs/EXTENDING.md) and [docs/TESTING.md](docs/TESTING.md).
 
----
+The pull request template ([`.github/pull_request_template.md`](.github/pull_request_template.md)) asks for the same checks in writing: a test for every fix, `yarn verificar` green, new text in every language the repo requires, and a line in `ASSETS.md` for new media. A security problem never goes into a public issue: [SECURITY.md](SECURITY.md) has the private channel.
 
-## Contributing (English)
+## Conduct
 
-1. Open an issue before changing the contract (`src/contrato.js`).
-2. Fork, branch, and run `yarn install --ignore-scripts`.
-3. Every new rule comes with a test that fails without it.
-4. Run `yarn verificar` before opening the pull request; CI runs the same command.
-5. Explain the why in the pull request.
-
-Code and comments are in Brazilian Portuguese; English issues and pull requests are welcome.
-Install-time scripts are not allowed. Be kind: critique code, never people.
+Treat others the way you would like to be treated: criticize the code, never the person. Harassment, insults and exposing someone's personal data remove the person from the project. To report, use the contact in [SECURITY.md](SECURITY.md).
